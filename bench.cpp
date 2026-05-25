@@ -1,4 +1,4 @@
-#include "block.hpp"
+#include "kick_srs.hpp"
 #include "search.hpp"
 #include "utils.hpp"
 #include "board.hpp"
@@ -15,7 +15,7 @@ using reachability::operator""_szc;
 using BOARD = reachability::board_t<10, 48>;
 
 uint64_t perft(BOARD b, const char* block, unsigned depth, unsigned height = 0) {
-	return reachability::call_with_block<reachability::blocks::SRS>(reachability::block_from_name(*block), [&]<reachability::block B> [[gnu::always_inline]] () {
+	return reachability::call_with_block<reachability::rules::SRS>(reachability::block_from_name(*block), [&]<reachability::block B> [[gnu::always_inline]] () {
 		uint64_t n = 0;
 		constexpr int relative_height = reachability::search::lowest_position<B>;
 		b.call_with_height<reachability::tuple{6, 12, 24, 48}>(height + 3, [&] [[gnu::always_inline]] (auto nb) {
@@ -39,7 +39,7 @@ uint64_t perft(BOARD b, const char* block, unsigned depth, unsigned height = 0) 
 			}
 			reachability::static_for<B.shapes>([&] [[gnu::always_inline]] (auto rot) {
 				constexpr auto mino = B.minos[rot];
-				constexpr auto range = reachability::blocks::mino_range<mino>();
+				constexpr auto range = reachability::mino_range<mino>();
 				constexpr auto max_y = range[3];
 				reachable[rot].for_each_bit([&] [[gnu::always_inline]] (int x, int y) {
 					BOARD new_board = b | BOARD::put<mino>(x, y);

@@ -2,14 +2,11 @@
 #include "block.hpp"
 #include "utils.hpp"
 #include <tuple>
-#include <queue>
 #include <array>
-#include <type_traits>
 #include <span>
 #include <algorithm>
 
 namespace reachability::search {
-	using namespace blocks;
 
 	template <Wrap<mino_p> auto mino, typename board_t>
 	constexpr board_t usable_positions(board_t data) {
@@ -41,8 +38,8 @@ namespace reachability::search {
 	constexpr board_t move_usable(board_t data) {
 		constexpr int dx = d[0_szc];
 		constexpr bool need_mask = [] {
-			constexpr auto range_from = blocks::mino_range<mino_from>();
-			constexpr auto range_to = blocks::mino_range<mino_to>();
+			constexpr auto range_from = mino_range<mino_from>();
+			constexpr auto range_to = mino_range<mino_to>();
 			if constexpr (dx == 0) {
 				return false;
 			} else if constexpr (dx > 0) {
@@ -85,13 +82,13 @@ namespace reachability::search {
 		static_for<b.orientations>([&](auto i) {
 			constexpr auto diff = b.mino_index[i];
 			constexpr auto mino = b.minos[index_c<diff[0_szc]>];
-			constexpr auto range = blocks::mino_range<mino>();
+			constexpr auto range = mino_range<mino>();
 			min_y[i] = range[1] + diff[1_szc][1_szc];
 		});
 		return *std::min_element(min_y.begin(), min_y.end());
 	}();
 
-	template <block block, coord start, std::size_t init_rot, bool check_consecutive = true, typename board_t>
+	template <block block, coord start, std::size_t init_rot = 0, bool check_consecutive = true, typename board_t>
 	constexpr std::array<board_t, block.shapes> binary_bfs(board_t data) {
 		constexpr int orientations = block.orientations;
 		constexpr int shapes = block.shapes;
@@ -201,7 +198,7 @@ namespace reachability::search {
 	}
 
 	template <typename RS, coord start, unsigned init_rot = 0, typename board_t>
-	constexpr static_vector<board_t, 4> binary_bfs(board_t data, block_type b) {
+	constexpr static_vector<board_t, 4> binary_bfs(board_t data, typename RS::piece_type b) {
 		return call_with_block<RS>(b, [=]<block B>() {
 			auto ret = binary_bfs<B, start, init_rot>(data);
 			return static_vector<board_t, 4>{std::span{ret}};

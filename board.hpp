@@ -161,7 +161,7 @@ namespace reachability {
 
 		template <Wrap<mino_p> auto mino>
 		static constexpr board_t put(int x, int y) {
-			constexpr auto range = blocks::mino_range<mino>();
+			constexpr auto range = mino_range<mino>();
 			constexpr int min_x = range[0];
 			board_t shape = shapes<mino>[y % lines_per_under];
 			static_for<num_of_under>([&](auto i) {
@@ -521,7 +521,7 @@ namespace reachability {
 
 		template <Wrap<mino_p> auto mino>
 		static constexpr board_t standard_shape() {
-			auto [min_x, min_y, max_x, max_y] = blocks::mino_range<mino>();
+			auto [min_x, min_y, max_x, max_y] = mino_range<mino>();
 			board_t b;
 			static_for<std::tuple_size_v<decltype(mino)>>([&](auto i) {
 				int x = mino[i][0_szc], y = mino[i][1_szc];
@@ -534,7 +534,7 @@ namespace reachability {
 
 		template <Wrap<mino_p> auto mino, int y>
 		static constexpr board_t shape_at_y() {
-			constexpr auto range = blocks::mino_range<mino>();
+			constexpr auto range = mino_range<mino>();
 			return standard_shape<mino>().template move<coord{0, y + range[1] + lines_per_under}>();
 		}
 
