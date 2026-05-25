@@ -7,6 +7,10 @@
 #include <algorithm>
 
 namespace reachability::search {
+	// Search configuration — passed as NTTP to binary_bfs
+	struct search_config {
+		bool allow_180 = false;
+	};
 
 	template <Wrap<mino_p> auto mino, typename board_t>
 	constexpr board_t usable_positions(board_t data) {
@@ -88,7 +92,7 @@ namespace reachability::search {
 		return *std::min_element(min_y.begin(), min_y.end());
 	}();
 
-	template <block block, coord start, std::size_t init_rot = 0, bool check_consecutive = true, typename board_t>
+	template <block block, coord start, std::size_t init_rot = 0, bool check_consecutive = true, search_config cfg = search_config{}, typename board_t>
 	constexpr std::array<board_t, block.shapes> binary_bfs(board_t data) {
 		constexpr int orientations = block.orientations;
 		constexpr int shapes = block.shapes;
@@ -172,6 +176,8 @@ namespace reachability::search {
 					constexpr auto kick_table = this_kick[1_szc];
 					if constexpr (diff[0_szc] != i) {
 						return;
+					} else if constexpr (!cfg.allow_180 && ((diff[0_szc] + 2) % 4 == diff[1_szc])) {
+						return;
 					} else {
 						constexpr auto target = index_c<diff[1_szc]>;
 						static_assert(target != i);
@@ -197,10 +203,10 @@ namespace reachability::search {
 		return ret;
 	}
 
-	template <typename RS, coord start, unsigned init_rot = 0, typename board_t>
+	template <typename RS, coord start, unsigned init_rot = 0, search_config cfg = search_config{}, typename board_t>
 	constexpr static_vector<board_t, 4> binary_bfs(board_t data, typename RS::piece_type b) {
 		return call_with_block<RS>(b, [=]<block B>() {
-			auto ret = binary_bfs<B, start, init_rot>(data);
+			auto ret = binary_bfs<B, start, init_rot, true, cfg>(data);
 			return static_vector<board_t, 4>{std::span{ret}};
 		});
 	}
