@@ -85,10 +85,25 @@ namespace reachability {
       return *this != board_t{};
     }
     constexpr bool operator!=(board_t other) const {
-      return any_of(data != other.data);
+      // manually compare to avoid GCC 16 simd library bug
+      constexpr std::size_t N = num_of_under;
+      std::array<under_t, N> a, b;
+      data.copy_to(a.data(), std::experimental::element_aligned);
+      other.data.copy_to(b.data(), std::experimental::element_aligned);
+      for (std::size_t i = 0; i < N; ++i)
+        if (a[i] != b[i])
+          return true;
+      return false;
     }
     [[gnu::always_inline]] constexpr bool contains(board_t other) const {
-      return all_of((other.data & ~data) == under_t(0));
+      // manually check to avoid GCC 16 simd library bug
+      constexpr std::size_t N = num_of_under;
+      std::array<under_t, N> tmp;
+      (other.data & ~data).copy_to(tmp.data(), std::experimental::element_aligned);
+      for (std::size_t i = 0; i < N; ++i)
+        if (tmp[i] != 0)
+          return false;
+      return true;
     }
     constexpr board_t operator~() const {
       board_t other;
