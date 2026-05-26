@@ -76,7 +76,8 @@ void test() {
 	};
 	for (const auto& [blocks, expected] : test_data) {
 		BOARD state;
-		const uint64_t result = perft(state, blocks.data(), blocks.size());
+		constexpr auto cfg = reachability::search::search_config{false, true, false};
+		const uint64_t result = perft<cfg>(state, blocks.data(), blocks.size());
 		std::cout << "Testing blocks: " << blocks << ", expected: " << expected << ", got: " << result << std::endl;
 		assert(result == expected);
 	}

@@ -9,7 +9,7 @@
 namespace reachability::search {
 	// Search configuration — passed as NTTP to binary_bfs
 	struct search_config {
-		bool allow_180 = false;
+		bool allow_180 = true;
 		bool allow_softdrop = true;
 		bool allow_sonicdrop = false;
 	};
@@ -270,6 +270,7 @@ namespace reachability::search {
 								result |= move_usable<block.minos[index], block.minos[index], MOVES[j]>(cache[i]);
 							});
 							result &= usable[index];
+							result = drop_to_bottom<block.minos[index]>(result, usable[index]);
 							if (cache[i].contains(result)) [[unlikely]]
 								break;
 							cache[i] = result;
@@ -293,6 +294,7 @@ namespace reachability::search {
 									temp &= ~move_usable<block.minos[index2], block.minos[index], -kick_table[k]>(usable[index2]);
 								});
 								to &= usable[index2];
+								to = drop_to_bottom<block.minos[index2]>(to, usable[index2]);
 								if (!cache[target].contains(to)) {
 									need_visit[target] = true;
 									if constexpr (target < i)
