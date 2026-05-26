@@ -10,8 +10,8 @@ namespace reachability::search {
 	// Search configuration — passed as NTTP to binary_bfs
 	struct search_config {
 		bool allow_180 = true;
-		bool allow_softdrop = true;  // false = use sonicdrop
-		bool allow_sonicdrop = false; // slam the piece down instead of moving down one by one, no moving down if both softdrop and sonicdrop are disabled
+		bool allow_softdrop = true;
+		bool allow_sonicdrop = false;
 	};
 
 	template <Wrap<mino_p> auto mino, typename board_t>
@@ -110,9 +110,15 @@ namespace reachability::search {
 	}();
 
 	template <block block, coord start, std::size_t init_rot = 0, bool check_consecutive = true, search_config cfg = search_config{}, typename board_t>
-	constexpr std::array<board_t, block.shapes> binary_bfs(board_t data) {
+	constexpr std::array<board_t, block.shapes> binary_bfs(board_t data, std::array<board_t, block.orientations>* out_cache = nullptr) {
 		constexpr int orientations = block.orientations;
 		constexpr int shapes = block.shapes;
+		const auto dump_cache = [](auto* dst, auto& src) {
+			if (dst) {
+				constexpr auto N = std::tuple_size_v<std::remove_reference_t<decltype(src)>>;
+				static_for<N>([&](auto i) { (*dst)[i] = src[i]; });
+			}
+		};
 		board_t usable[shapes];
 		static_for<shapes>([&] [[gnu::always_inline]] (auto i) {
 			usable[i] = usable_positions<block.minos[i]>(data);
@@ -131,6 +137,8 @@ namespace reachability::search {
 		constexpr coord start2 = start_at(index_c<init_rot>);
 		constexpr auto init_rot2 = block.mino_index[index_c<init_rot>][0_szc];
 		if (!usable[init_rot2].template get<start2[0_szc], start2[1_szc]>()) [[unlikely]] {
+			if (out_cache)
+				out_cache->fill({});
 			return {};
 		}
 		bool all_reachable = [&] {
@@ -147,7 +155,6 @@ namespace reachability::search {
 		std::array<bool, orientations> need_visit{};
 		std::array<board_t, orientations> cache;
 		if constexpr (!cfg.allow_softdrop) {
-			// Harddrop: single bit at each rotation's spawn, then rotate/move at top, then drop
 			static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
 				constexpr coord this_start = start_at(i);
 				constexpr auto rot = block.mino_index[i][0_szc];
@@ -185,8 +192,10 @@ namespace reachability::search {
 		};
 		for (bool updated = true; updated;) [[unlikely]] {
 			auto [found_all, ret] = quick_check();
-			if (found_all)
+			if (found_all) {
+				dump_cache(out_cache, cache);
 				return ret;
+			}
 			updated = false;
 			static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
 				if (!need_visit[i]) {
@@ -234,19 +243,21 @@ namespace reachability::search {
 				});
 			});
 		}
-		// Instant drop (harddrop/sonicdrop): drop to bottom after kicks converge at top
 		if constexpr (!cfg.allow_softdrop) {
 			static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
 				constexpr auto index = index_c<block.mino_index[i][0_szc]>;
 				cache[i] = drop_to_bottom<block.minos[index]>(cache[i], usable[index]);
 			});
-			// Sonicdrop: second pass — rotate/move at bottom after drop
-			if constexpr (cfg.allow_sonicdrop) {
+			if constexpr (!cfg.allow_sonicdrop) {
+				dump_cache(out_cache, cache);
+			} else {
 				need_visit.fill(true);
 				for (bool updated = true; updated;) [[unlikely]] {
 					auto [found_all, ret] = quick_check();
-					if (found_all)
+					if (found_all) {
+						dump_cache(out_cache, cache);
 						return ret;
+					}
 					updated = false;
 					static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
 						if (!need_visit[i])
@@ -292,7 +303,11 @@ namespace reachability::search {
 						});
 					});
 				}
+				dump_cache(out_cache, cache);
 			}
+		}
+		if constexpr (cfg.allow_softdrop) {
+			dump_cache(out_cache, cache);
 		}
 		auto [_, ret] = quick_check();
 		return ret;
@@ -305,4 +320,92 @@ namespace reachability::search {
 			return static_vector<board_t, 4>{std::span{ret}};
 		});
 	}
+
+	template <block B, typename board_t>
+	struct bfs_state {
+		static constexpr int orientations = B.orientations;
+		static constexpr int shapes = B.shapes;
+		static constexpr std::array<int, orientations> shape_for_rot = [] {
+			std::array<int, orientations> arr{};
+			static_for<orientations>([&](auto i) {
+				arr[i] = std::get<0>(std::get<i>(B.mino_index));
+			});
+			return arr;
+		}();
+		std::array<board_t, orientations> cache;
+		std::array<board_t, shapes> usable;
+
+		constexpr bfs_state(const std::array<board_t, orientations>& c, const board_t& board)
+		    : cache(c) {
+			static_for<shapes>([&](auto i) {
+				usable[i] = usable_positions<B.minos[i]>(board);
+			});
+		}
+
+		constexpr bool is_valid(int rot, int x, int y) const {
+			return usable[shape_for_rot[rot]].get(x, y);
+		}
+
+		constexpr bool can_move_left(int rot, int x, int y) const {
+			if (x <= 0)
+				return false;
+			return is_valid(rot, x - 1, y);
+		}
+
+		constexpr bool can_move_right(int rot, int x, int y) const {
+			if (x + 1 >= int(board_t::width))
+				return false;
+			return is_valid(rot, x + 1, y);
+		}
+
+		constexpr bool can_move_up(int rot, int x, int y) const {
+			if (y + 1 >= int(board_t::height))
+				return false;
+			return is_valid(rot, x, y + 1);
+		}
+
+		constexpr bool can_move_down(int rot, int x, int y) const {
+			if (y <= 0)
+				return false;
+			return is_valid(rot, x, y - 1);
+		}
+
+		struct rotate_result {
+			int rot;
+			int x;
+			int y;
+		};
+
+		constexpr rotate_result try_rotate(int rot_from, int rot_to, int x, int y) const {
+			if (rot_from == rot_to)
+				return {rot_from, x, y};
+
+			int new_x = x, new_y = y;
+			bool found = false;
+
+			static_for<std::tuple_size_v<decltype(B.kicks)>>([&](auto i) {
+				constexpr auto entry = B.kicks[i];
+				constexpr auto diff = entry[0_szc];
+				if (diff[0_szc] != rot_from || diff[1_szc] != rot_to)
+					return;
+				constexpr auto table = entry[1_szc];
+				static_for<std::tuple_size_v<std::remove_const_t<decltype(table)>>>([&](auto j) {
+					if (found)
+						return;
+					constexpr auto kick = table[j];
+					constexpr int dx = kick[0_szc], dy = kick[1_szc];
+					int nx = x + dx, ny = y + dy;
+					if (is_valid(rot_to, nx, ny)) {
+						new_x = nx;
+						new_y = ny;
+						found = true;
+					}
+				});
+			});
+
+			if (found)
+				return {rot_to, new_x, new_y};
+			return {rot_from, x, y};
+		}
+	};
 } // namespace reachability::search
