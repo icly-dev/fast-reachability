@@ -10,7 +10,8 @@ namespace reachability::search {
 	// Search configuration — passed as NTTP to binary_bfs
 	struct search_config {
 		bool allow_180 = true;
-		bool allow_softdrop = true;
+		bool allow_softdrop = true;  // false = use sonicdrop
+		bool allow_sonicdrop = false; // slam the piece down instead of moving down one by one, no moving down if both softdrop and sonicdrop are disabled
 	};
 
 	template <Wrap<mino_p> auto mino, typename board_t>
@@ -233,12 +234,65 @@ namespace reachability::search {
 				});
 			});
 		}
-		// Harddrop: drop to bottom after kicks converge at spawn height
+		// Instant drop (harddrop/sonicdrop): drop to bottom after kicks converge at top
 		if constexpr (!cfg.allow_softdrop) {
 			static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
 				constexpr auto index = index_c<block.mino_index[i][0_szc]>;
 				cache[i] = drop_to_bottom<block.minos[index]>(cache[i], usable[index]);
 			});
+			// Sonicdrop: second pass — rotate/move at bottom after drop
+			if constexpr (cfg.allow_sonicdrop) {
+				need_visit.fill(true);
+				for (bool updated = true; updated;) [[unlikely]] {
+					auto [found_all, ret] = quick_check();
+					if (found_all)
+						return ret;
+					updated = false;
+					static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
+						if (!need_visit[i])
+							return;
+						constexpr auto index = index_c<block.mino_index[i][0_szc]>;
+						need_visit[i] = false;
+						while (true) {
+							board_t result = cache[i];
+							static_for<MOVES.size()>([&] [[gnu::always_inline]] (auto j) {
+								result |= move_usable<block.minos[index], block.minos[index], MOVES[j]>(cache[i]);
+							});
+							result &= usable[index];
+							if (cache[i].contains(result)) [[unlikely]]
+								break;
+							cache[i] = result;
+						}
+						static_for<std::tuple_size_v<decltype(block.kicks)>>([&] [[gnu::always_inline]] (auto j) {
+							constexpr auto this_kick = block.kicks[j];
+							constexpr auto diff = this_kick[0_szc];
+							constexpr auto kick_table = this_kick[1_szc];
+							if constexpr (diff[0_szc] != i)
+								return;
+							else if constexpr (!cfg.allow_180 && ((diff[0_szc] + 2) % 4 == diff[1_szc]))
+								return;
+							else {
+								constexpr auto target = index_c<diff[1_szc]>;
+								static_assert(target != i);
+								board_t to = cache[target];
+								constexpr auto index2 = index_c<block.mino_index[target][0_szc]>;
+								board_t temp = cache[i];
+								static_for<std::tuple_size_v<decltype(kick_table)>>([&] [[gnu::always_inline]] (auto k) {
+									to |= move_usable<block.minos[index], block.minos[index2], kick_table[k]>(temp);
+									temp &= ~move_usable<block.minos[index2], block.minos[index], -kick_table[k]>(usable[index2]);
+								});
+								to &= usable[index2];
+								if (!cache[target].contains(to)) {
+									need_visit[target] = true;
+									if constexpr (target < i)
+										updated = true;
+								}
+								cache[target] = to;
+							}
+						});
+					});
+				}
+			}
 		}
 		auto [_, ret] = quick_check();
 		return ret;
