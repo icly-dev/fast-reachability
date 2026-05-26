@@ -4,7 +4,6 @@
 #include "board.hpp"
 #include <cstdio>
 #include <iostream>
-#include <unordered_map>
 #include <cassert>
 #include <chrono>
 #include <cstring>
@@ -57,7 +56,7 @@ uint64_t perft(BOARD b, const char* block, unsigned depth, unsigned height = 0) 
 
 pair<uint64_t, uint64_t> perft_with_time(BOARD b, const char* block, unsigned depth) {
 	const auto start = std::chrono::high_resolution_clock::now();
-	uint64_t nodes = perft(b, block, depth);
+	uint64_t nodes = perft<{false, true, true}>(b, block, depth);
 	const auto end = std::chrono::high_resolution_clock::now();
 	const auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 	return {nodes, dt};
@@ -76,7 +75,7 @@ void test() {
 	};
 	for (const auto& [blocks, expected] : test_data) {
 		BOARD state;
-		constexpr auto cfg = reachability::search::search_config{false, true, false};
+		constexpr auto cfg = reachability::search::search_config{false, true, true};
 		const uint64_t result = perft<cfg>(state, blocks.data(), blocks.size());
 		std::cout << "Testing blocks: " << blocks << ", expected: " << expected << ", got: " << result << std::endl;
 		assert(result == expected);
@@ -103,152 +102,92 @@ void bench() {
 	std::cout << "Total Nodes: " << nodes_sum << " Total Time: " << dt_sum << "ms" << " Average NPS: " << (nodes_sum * 1000) / (dt_sum + 1) << std::endl;
 }
 
-void configs() {
-	auto set_row = [](BOARD& board, int y, unsigned int bits) {
-		for (int x = 0; x < 10; ++x)
-			if (bits & (1u << x))
-				board.set(x, y);
-	};
+// void configs() {
+// 	auto set_row = [](BOARD& board, int y, unsigned int bits) {
+// 		for (int x = 0; x < 10; ++x)
+// 			if (bits & (1u << x))
+// 				board.set(x, y);
+// 	};
 
-	BOARD b;
-	set_row(b, 0, 0b1011000101);
-	set_row(b, 1, 0b1001100100);
-	set_row(b, 2, 0b1001000100);
-	set_row(b, 3, 0b0011001001);
-	set_row(b, 4, 0b0011101100);
-	set_row(b, 5, 0b0001000100);
-	set_row(b, 6, 0b1000000110);
-	set_row(b, 7, 0b1101000000);
-	set_row(b, 8, 0b0);
-	set_row(b, 9, 0b1001001);
-	set_row(b, 10, 0b1000);
-	set_row(b, 11, 0b1001);
-	set_row(b, 12, 0b1);
-	std::cout << "Board:\n"
-		  << to_string<16>(b);
+// 	BOARD b;
+// 	set_row(b, 0, 0b1011000101);
+// 	set_row(b, 1, 0b1001100100);
+// 	set_row(b, 2, 0b1001000100);
+// 	set_row(b, 3, 0b0011001001);
+// 	set_row(b, 4, 0b0011101100);
+// 	set_row(b, 5, 0b0001000100);
+// 	set_row(b, 6, 0b1000000110);
+// 	set_row(b, 7, 0b1101000000);
+// 	set_row(b, 8, 0b0);
+// 	set_row(b, 9, 0b1001001);
+// 	set_row(b, 10, 0b1000);
+// 	set_row(b, 11, 0b1001);
+// 	set_row(b, 12, 0b1);
+// 	std::cout << "Board:\n"
+// 		  << to_string<16>(b);
 
-	constexpr reachability::coord spawn{4, 20};
+// 	constexpr reachability::coord spawn{4, 20};
 
-	auto show_placements = [&]<reachability::search::search_config cfg, reachability::block B>(const char* piece_name, const char* cfg_label, BOARD board) {
-		std::array<BOARD, B.orientations> cache;
-		auto result = reachability::search::binary_bfs<B, spawn, 0, false, cfg>(board, &cache);
-		reachability::search::bfs_state<B, BOARD> state{cache, board};
-		std::cout << "\n--- " << cfg_label << ", " << piece_name << " ---\n";
-		int count = 0;
-		reachability::static_for<B.shapes>([&](auto rot) {
-			constexpr auto mino = B.minos[rot];
-			constexpr int N = B.orientations;
-			result[rot].for_each_bit([&](int x, int y) {
-				bool L = state.can_move_left(rot, x, y);
-				bool R = state.can_move_right(rot, x, y);
-				bool U = state.can_move_up(rot, x, y);
-				bool D = state.can_move_down(rot, x, y);
+// 	auto show_placements = [&]<reachability::search::search_config cfg, reachability::block B>(const char* piece_name, const char* cfg_label, BOARD board) {
+// 		std::array<BOARD, B.orientations> cache;
+// 		auto result = reachability::search::binary_bfs<B, spawn, 0, false, cfg>(board, &cache);
+// 		reachability::search::bfs_state<B, BOARD> state{cache, board};
+// 		std::cout << "\n--- " << cfg_label << ", " << piece_name << " ---\n";
+// 		int count = 0;
+// 		reachability::static_for<B.shapes>([&](auto rot) {
+// 			constexpr auto mino = B.minos[rot];
+// 			constexpr int N = B.orientations;
+// 			result[rot].for_each_bit([&](int x, int y) {
+// 				bool L = state.can_move_left(rot, x, y);
+// 				bool R = state.can_move_right(rot, x, y);
+// 				bool U = state.can_move_up(rot, x, y);
+// 				bool D = state.can_move_down(rot, x, y);
 
-				auto try_show = [&](int to_rot, const char* label) {
-					auto [nr, nx, ny] = state.try_rotate(rot, to_rot, x, y);
-					std::cout << "    " << label << ": ";
-					if (nr != rot)
-						std::cout << rot << "\u2192" << nr << " (" << nx << "," << ny << ")\n";
-					else
-						std::cout << rot << "\u2192" << to_rot << " (no)\n";
-				};
-				try_show((rot + 1) % N, "R");
-				try_show((rot + N - 1) % N, "L");
-				try_show((rot + 2) % N, "180");
+// 				auto try_show = [&](int to_rot, const char* label) {
+// 					auto [nr, nx, ny] = state.try_rotate(rot, to_rot, x, y);
+// 					std::cout << "    " << label << ": ";
+// 					if (nr != rot)
+// 						std::cout << rot << "\u2192" << nr << " (" << nx << "," << ny << ")\n";
+// 					else
+// 						std::cout << rot << "\u2192" << to_rot << " (no)\n";
+// 				};
+// 				try_show((rot + 1) % N, "R");
+// 				try_show((rot + N - 1) % N, "L");
+// 				try_show((rot + 2) % N, "180");
 
-				BOARD placed = board | BOARD::put<mino>(x, y);
-				auto [cleared, cl] = placed.clear_full_lines();
-				std::cout << "placement " << ++count
-					  << " (rot=" << rot << " x=" << x << " y=" << y
-					  << " L=" << L << " R=" << R << " U=" << U << " D=" << D
-					  << " cleared=" << cl << "):\n"
-					  << to_string<16>(cleared);
-			});
-		});
-	};
+// 				BOARD placed = board | BOARD::put<mino>(x, y);
+// 				auto [cleared, cl] = placed.clear_full_lines();
+// 				std::cout << "placement " << ++count
+// 					  << " (rot=" << rot << " x=" << x << " y=" << y
+// 					  << " L=" << L << " R=" << R << " U=" << U << " D=" << D
+// 					  << " cleared=" << cl << "):\n"
+// 					  << to_string<16>(cleared);
+// 			});
+// 		});
+// 	};
 
-	auto run_config = [&]<reachability::search::search_config cfg>(const char* label) {
-		show_placements.template operator()<cfg, std::get<4>(reachability::rules::SRS::block_list)>("L", label, b);
-	};
+// 	auto run_config = [&]<reachability::search::search_config cfg>(const char* label) {
+// 		show_placements.template operator()<cfg, std::get<4>(reachability::rules::SRS::block_list)>("L", label, b);
+// 	};
 
-	run_config.template operator()<reachability::search::search_config{true, true, true}>("softdrop");
-	run_config.template operator()<reachability::search::search_config{true, false, true}>("sonicdrop");
-	run_config.template operator()<reachability::search::search_config{true, false, false}>("harddrop");
-}
+// 	run_config.template operator()<reachability::search::search_config{true, true, true}>("softdrop");
+// 	run_config.template operator()<reachability::search::search_config{true, false, true}>("sonicdrop");
+// 	run_config.template operator()<reachability::search::search_config{true, false, false}>("harddrop");
+// }
 
-void perft_configs(const char* pieces) {
-	const auto len = std::strlen(pieces);
-	auto run = [&]<reachability::search::search_config cfg>(const char* label) {
-		const auto start = std::chrono::high_resolution_clock::now();
-		uint64_t nodes = perft<cfg>(BOARD{}, pieces, len);
-		const auto end = std::chrono::high_resolution_clock::now();
-		auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-		std::cout << label << ": Nodes=" << nodes << " Time=" << dt << "ms" << std::endl;
-	};
-	run.template operator()<reachability::search::search_config{true, true, true}>("softdrop");
-	run.template operator()<reachability::search::search_config{true, false, true}>("sonicdrop");
-	run.template operator()<reachability::search::search_config{true, false, false}>("harddrop");
-}
-
-void test_map() {
-	auto set_row = [](BOARD& board, int y, unsigned int bits) {
-		for (int x = 0; x < 10; ++x)
-			if (bits & (1u << x))
-				board.set(x, y);
-	};
-
-	BOARD b;
-	set_row(b, 0, 0b1011000101);
-	set_row(b, 1, 0b1001100100);
-	set_row(b, 2, 0b1001000100);
-	set_row(b, 3, 0b0011001001);
-	set_row(b, 4, 0b0011101100);
-	set_row(b, 5, 0b0001000100);
-	set_row(b, 6, 0b1000000110);
-	set_row(b, 7, 0b1101000000);
-	set_row(b, 8, 0b0);
-	set_row(b, 9, 0b1001001);
-	set_row(b, 10, 0b1000);
-	set_row(b, 11, 0b1001);
-	set_row(b, 12, 0b1);
-
-	constexpr reachability::coord spawn{4, 20};
-
-	auto test_piece = [&]<reachability::search::search_config cfg, reachability::block B>(const char* pname, BOARD board) {
-		std::array<BOARD, B.orientations> cache;
-		auto result = reachability::search::binary_bfs<B, spawn, 0, false, cfg>(board, &cache);
-		reachability::search::bfs_state<B, BOARD> state{cache, board};
-
-		std::unordered_map<uint64_t, int> mp; // key → L*8+R*4+U*2+D
-		int total = 0;
-		reachability::static_for<B.shapes>([&](auto rot) {
-			result[rot].for_each_bit([&](int x, int y) {
-				uint64_t key = (uint64_t(int(rot)) << 32) | (uint64_t(x) << 16) | uint64_t(y);
-				int lrud = (int(state.can_move_left(rot, x, y)) << 3) | (int(state.can_move_right(rot, x, y)) << 2) | (int(state.can_move_up(rot, x, y)) << 1) | int(state.can_move_down(rot, x, y));
-				mp[key] = lrud;
-				++total;
-			});
-		});
-
-		printf("  %s (%d placements):\n", pname, total);
-		for (auto& [key, lrud] : mp) {
-			int r = (key >> 32) & 0xff;
-			int x = (key >> 16) & 0xffff;
-			int y = key & 0xffff;
-			printf("    rot=%d x=%d y=%d  L=%d R=%d U=%d D=%d\n",
-			    r, x, y, (lrud >> 3) & 1, (lrud >> 2) & 1, (lrud >> 1) & 1, lrud & 1);
-		}
-	};
-
-	auto run = [&]<reachability::search::search_config cfg>(const char* label) {
-		printf("\n=== %s ===\n", label);
-		test_piece.template operator()<cfg, std::get<4>(reachability::rules::SRS::block_list)>("L", b);
-	};
-
-	run.template operator()<reachability::search::search_config{}>("softdrop");
-	run.template operator()<reachability::search::search_config{true, false, true}>("sonicdrop");
-	run.template operator()<reachability::search::search_config{true, false, false}>("harddrop");
-}
+// void perft_configs(const char* pieces) {
+// 	const auto len = std::strlen(pieces);
+// 	auto run = [&]<reachability::search::search_config cfg>(const char* label) {
+// 		const auto start = std::chrono::high_resolution_clock::now();
+// 		uint64_t nodes = perft<cfg>(BOARD{}, pieces, len);
+// 		const auto end = std::chrono::high_resolution_clock::now();
+// 		auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+// 		std::cout << label << ": Nodes=" << nodes << " Time=" << dt << "ms" << std::endl;
+// 	};
+// 	run.template operator()<reachability::search::search_config{true, true, true}>("softdrop");
+// 	run.template operator()<reachability::search::search_config{true, false, true}>("sonicdrop");
+// 	run.template operator()<reachability::search::search_config{true, false, false}>("harddrop");
+// }
 
 int main(int argc, char* argv[]) {
 	assert(argc >= 2);
@@ -259,18 +198,15 @@ int main(int argc, char* argv[]) {
 	} else if (strcmp(argv[1], "bench") == 0) {
 		bench();
 		return 0;
-	} else if (strcmp(argv[1], "configs") == 0) {
-		assert(argc >= 2);
-		if (argc == 2) {
-			configs();
-		} else {
-			perft_configs(argv[2]);
-		}
-		return 0;
-	} else if (strcmp(argv[1], "test_map") == 0) {
-		test_map();
-		return 0;
-	}
+	} // else if (strcmp(argv[1], "configs") == 0) {
+	// 	assert(argc >= 2);
+	// 	if (argc == 2) {
+	// 		configs();
+	// 	} else {
+	// 		perft_configs(argv[2]);
+	// 	}
+	// 	return 0;
+	// }
 
 	const auto [nodes, dt] = perft_with_time(BOARD{}, argv[1], strlen(argv[1]));
 

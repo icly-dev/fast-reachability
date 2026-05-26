@@ -11,7 +11,7 @@ namespace reachability::search {
 	struct search_config {
 		bool allow_180 = true;
 		bool allow_softdrop = true;
-		bool allow_sonicdrop = false;
+		bool allow_sonicdrop = true;
 	};
 
 	template <Wrap<mino_p> auto mino, typename board_t>
