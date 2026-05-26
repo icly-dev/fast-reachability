@@ -220,6 +220,32 @@ namespace reachability {
 			return ret;
 		}
 
+		template <int height>
+		friend constexpr std::string to_string(board_t board) {
+			std::string ret;
+			static_for<height>([&] [[gnu::always_inline]] (auto y) {
+				std::string this_ret = "|";
+				static_for<W>([&] [[gnu::always_inline]] (auto x) {
+					this_ret += board.get<x, y>() ? "[]" : "  ";
+				});
+				this_ret += "|\n";
+				ret = this_ret + ret;
+			});
+			return ret;
+		}
+
+		friend constexpr std::string to_string(board_t board, int height) {
+			std::string ret;
+			for (int y = 0; y < height; ++y) {
+				std::string this_ret = "|";
+				for (int x = 0; x < int(W); ++x)
+					this_ret += board.get(x, y) ? "[]" : "  ";
+				this_ret += "|\n";
+				ret = this_ret + ret;
+			}
+			return ret;
+		}
+
 		friend constexpr std::string to_string(board_t board1, board_t board2) {
 			std::string ret;
 			static_for<H>([&] [[gnu::always_inline]] (auto y) {

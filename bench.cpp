@@ -14,6 +14,7 @@ using reachability::operator""_szc;
 
 using BOARD = reachability::board_t<10, 48>;
 
+template <reachability::search::search_config cfg = reachability::search::search_config{}>
 uint64_t perft(BOARD b, const char* block, unsigned depth, unsigned height = 0) {
 	return reachability::call_with_block<reachability::rules::SRS>(reachability::block_from_name(*block), [&]<reachability::block B> [[gnu::always_inline]] () {
 		uint64_t n = 0;
@@ -23,13 +24,13 @@ uint64_t perft(BOARD b, const char* block, unsigned depth, unsigned height = 0) 
 			constexpr int necessary_height = spawn_pos[1_szc] + relative_height;
 			std::array<decltype(nb), B.shapes> reachable;
 			if constexpr (nb.height < necessary_height) {
-				reachable = reachability::search::binary_bfs<B, spawn_pos, 0, false>(nb);
+				reachable = reachability::search::binary_bfs<B, spawn_pos, 0, false, cfg>(nb);
 			} else {
 				bool check_consecutive = height > necessary_height;
 				if (check_consecutive) [[unlikely]] {
-					reachable = reachability::search::binary_bfs<B, spawn_pos, 0, true>(nb);
+					reachable = reachability::search::binary_bfs<B, spawn_pos, 0, true, cfg>(nb);
 				} else {
-					reachable = reachability::search::binary_bfs<B, spawn_pos, 0, false>(nb);
+					reachable = reachability::search::binary_bfs<B, spawn_pos, 0, false, cfg>(nb);
 				}
 			}
 			if (depth == 1) {
@@ -45,7 +46,7 @@ uint64_t perft(BOARD b, const char* block, unsigned depth, unsigned height = 0) 
 					BOARD new_board = b | BOARD::put<mino>(x, y);
 					auto [cleared, cleared_lines] = new_board.clear_full_lines();
 					unsigned new_height = std::max(height, unsigned(y + max_y + 1)) - cleared_lines;
-					n += perft(cleared, block + 1, depth - 1, new_height);
+					n += perft<cfg>(cleared, block + 1, depth - 1, new_height);
 				});
 			});
 		});
@@ -100,14 +101,69 @@ void bench() {
 	std::cout << "Total Nodes: " << nodes_sum << " Total Time: " << dt_sum << "ms" << " Average NPS: " << (nodes_sum * 1000) / (dt_sum + 1) << std::endl;
 }
 
+void configs() {
+	BOARD b;
+	b.set(0, 2);
+	b.set(0, 4);
+	b.set(0, 6);
+	std::cout << "Board:\n" << to_string<6>(b);
+
+	constexpr reachability::coord spawn{4, 20};
+
+	auto show_placements = [&]<reachability::search::search_config cfg, reachability::block B>(const char* piece_name, const char* cfg_label, BOARD board) {
+		auto result = reachability::search::binary_bfs<B, spawn, 0, false, cfg>(board);
+		std::cout << "\n--- " << cfg_label << ", " << piece_name << " ---\n";
+		int count = 0;
+		reachability::static_for<B.shapes>([&](auto rot) {
+			constexpr auto mino = B.minos[rot];
+			result[rot].for_each_bit([&](int x, int y) {
+				BOARD placed = board | BOARD::put<mino>(x, y);
+				auto [cleared, cl] = placed.clear_full_lines();
+				std::cout << "placement " << ++count
+					  << " (rot=" << rot << " x=" << x << " y=" << y
+					  << " cleared=" << cl << "):\n" << to_string<10>(cleared);
+			});
+		});
+	};
+
+	auto run_config = [&]<reachability::search::search_config cfg>(const char* label) {
+		show_placements.template operator()<cfg, std::get<5>(reachability::rules::SRS::block_list)>("O", label, b);
+		show_placements.template operator()<cfg, std::get<0>(reachability::rules::SRS::block_list)>("T", label, b);
+	};
+
+	run_config.template operator()<reachability::search::search_config{}>("softdrop");
+	run_config.template operator()<reachability::search::search_config{true, false}>("harddrop");
+}
+
+void perft_configs(const char* pieces) {
+	const auto len = std::strlen(pieces);
+	auto run = [&]<reachability::search::search_config cfg>(const char* label) {
+		const auto start = std::chrono::high_resolution_clock::now();
+		uint64_t nodes = perft<cfg>(BOARD{}, pieces, len);
+		const auto end = std::chrono::high_resolution_clock::now();
+		auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+		std::cout << label << ": Nodes=" << nodes << " Time=" << dt << "ms" << std::endl;
+	};
+	run.template operator()<reachability::search::search_config{}>("softdrop");
+	run.template operator()<reachability::search::search_config{true, false}>("harddrop");
+}
+
 int main(int argc, char* argv[]) {
-	assert(argc == 2);
+	assert(argc >= 2);
 	if (strcmp(argv[1], "test") == 0) {
 		test();
 		std::cout << "All tests passed!" << std::endl;
 		return 0;
 	} else if (strcmp(argv[1], "bench") == 0) {
 		bench();
+		return 0;
+	} else if (strcmp(argv[1], "configs") == 0) {
+		assert(argc >= 2);
+		if (argc == 2) {
+			configs();
+		} else {
+			perft_configs(argv[2]);
+		}
 		return 0;
 	}
 

@@ -9,7 +9,8 @@
 namespace reachability::search {
 	// Search configuration — passed as NTTP to binary_bfs
 	struct search_config {
-		bool allow_180 = false;
+		bool allow_180 = true;
+		bool allow_softdrop = true;
 	};
 
 	template <Wrap<mino_p> auto mino, typename board_t>
@@ -53,6 +54,21 @@ namespace reachability::search {
 			}
 		}();
 		return data.template move<d, need_mask>();
+	}
+
+	template <Wrap<mino_p> auto mino, typename board_t>
+	constexpr board_t drop_to_bottom(board_t positions, board_t usable) {
+		board_t result = positions;
+		while (true) {
+			auto moved = move_usable<mino, mino, coord{0, -1}>(result);
+			auto valid = moved & usable;
+			if (result.contains(valid))
+				break;
+			auto moved_up = move_usable<mino, mino, coord{0, 1}>(valid);
+			auto stayed = result & ~moved_up;
+			result = stayed | valid;
+		}
+		return result;
 	}
 
 	template <coord start, bool check_consecutive, typename board_t>
@@ -104,7 +120,13 @@ namespace reachability::search {
 			constexpr coord this_start = start + block.mino_index[rot][1_szc];
 			return coord{this_start[0_szc], std::min(this_start[1_szc], board_t::height - 1)};
 		};
-		constexpr std::array<coord, 3> MOVES = {{{-1, 0}, {1, 0}, {0, -1}}};
+		constexpr auto MOVES = [] {
+			if constexpr (cfg.allow_softdrop) {
+				return std::array{coord{-1, 0}, coord{1, 0}, coord{0, -1}};
+			} else {
+				return std::array{coord{-1, 0}, coord{1, 0}};
+			}
+		}();
 		constexpr coord start2 = start_at(index_c<init_rot>);
 		constexpr auto init_rot2 = block.mino_index[index_c<init_rot>][0_szc];
 		if (!usable[init_rot2].template get<start2[0_szc], start2[1_szc]>()) [[unlikely]] {
@@ -123,7 +145,19 @@ namespace reachability::search {
 		}();
 		std::array<bool, orientations> need_visit{};
 		std::array<board_t, orientations> cache;
-		if (all_reachable) {
+		if constexpr (!cfg.allow_softdrop) {
+			// Harddrop: single bit at each rotation's spawn, then rotate/move at top, then drop
+			static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
+				constexpr coord this_start = start_at(i);
+				constexpr auto rot = block.mino_index[i][0_szc];
+				if (usable[rot].template get<this_start[0_szc], this_start[1_szc]>()) {
+					board_t start_pos{};
+					start_pos.template set<this_start[0_szc], this_start[1_szc]>();
+					cache[i] = start_pos;
+					need_visit[i] = true;
+				}
+			});
+		} else if (all_reachable) {
 			need_visit.fill(true);
 			static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
 				constexpr coord this_start = start_at(i);
@@ -197,6 +231,13 @@ namespace reachability::search {
 						cache[target] = to;
 					}
 				});
+			});
+		}
+		// Harddrop: drop to bottom after kicks converge at spawn height
+		if constexpr (!cfg.allow_softdrop) {
+			static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
+				constexpr auto index = index_c<block.mino_index[i][0_szc]>;
+				cache[i] = drop_to_bottom<block.minos[index]>(cache[i], usable[index]);
 			});
 		}
 		auto [_, ret] = quick_check();
