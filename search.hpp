@@ -9,7 +9,7 @@
 namespace reachability::search {
 	// Search configuration — passed as NTTP to binary_bfs
 	struct search_config {
-		bool allow_180 = true;
+		bool allow_180 = false;
 		bool allow_softdrop = true;
 		bool allow_sonicdrop = false;
 	};

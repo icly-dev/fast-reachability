@@ -103,25 +103,28 @@ void bench() {
 }
 
 void configs() {
-	auto set_col = [](BOARD& board, int x, unsigned long long bits) {
-		for (int y = 0; y < 12; ++y)
-			if (bits & (1ull << y))
+	auto set_row = [](BOARD& board, int y, unsigned int bits) {
+		for (int x = 0; x < 10; ++x)
+			if (bits & (1u << x))
 				board.set(x, y);
 	};
 
 	BOARD b;
-	set_col(b, 0, 0b111111111100);
-	set_col(b, 1, 0b110000001100);
-	set_col(b, 2, 0b110000001100);
-	set_col(b, 3, 0b110011001100);
-	set_col(b, 4, 0b110011001100);
-	set_col(b, 5, 0b110011001100);
-	set_col(b, 6, 0b110011001100);
-	set_col(b, 7, 0b110011001100);
-	set_col(b, 8, 0b000011000000);
-	set_col(b, 9, 0b000011111111);
+	set_row(b, 0, 0b1011000101);
+	set_row(b, 1, 0b1001100100);
+	set_row(b, 2, 0b1001000100);
+	set_row(b, 3, 0b0011001001);
+	set_row(b, 4, 0b0011101100);
+	set_row(b, 5, 0b0001000100);
+	set_row(b, 6, 0b1000000110);
+	set_row(b, 7, 0b1101000000);
+	set_row(b, 8, 0b0);
+	set_row(b, 9, 0b1001001);
+	set_row(b, 10, 0b1000);
+	set_row(b, 11, 0b1001);
+	set_row(b, 12, 0b1);
 	std::cout << "Board:\n"
-		  << to_string<12>(b);
+		  << to_string<16>(b);
 
 	constexpr reachability::coord spawn{4, 20};
 
@@ -164,11 +167,10 @@ void configs() {
 	};
 
 	auto run_config = [&]<reachability::search::search_config cfg>(const char* label) {
-		show_placements.template operator()<cfg, std::get<5>(reachability::rules::SRS::block_list)>("O", label, b);
-		show_placements.template operator()<cfg, std::get<0>(reachability::rules::SRS::block_list)>("T", label, b);
+		show_placements.template operator()<cfg, std::get<4>(reachability::rules::SRS::block_list)>("L", label, b);
 	};
 
-	run_config.template operator()<reachability::search::search_config{}>("softdrop");
+	run_config.template operator()<reachability::search::search_config{true, true, true}>("softdrop");
 	run_config.template operator()<reachability::search::search_config{true, false, true}>("sonicdrop");
 	run_config.template operator()<reachability::search::search_config{true, false, false}>("harddrop");
 }
@@ -182,29 +184,32 @@ void perft_configs(const char* pieces) {
 		auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 		std::cout << label << ": Nodes=" << nodes << " Time=" << dt << "ms" << std::endl;
 	};
-	run.template operator()<reachability::search::search_config{}>("softdrop");
+	run.template operator()<reachability::search::search_config{true, true, true}>("softdrop");
 	run.template operator()<reachability::search::search_config{true, false, true}>("sonicdrop");
 	run.template operator()<reachability::search::search_config{true, false, false}>("harddrop");
 }
 
 void test_map() {
-	auto set_col = [](BOARD& board, int x, unsigned long long bits) {
-		for (int y = 0; y < 12; ++y)
-			if (bits & (1ull << y))
+	auto set_row = [](BOARD& board, int y, unsigned int bits) {
+		for (int x = 0; x < 10; ++x)
+			if (bits & (1u << x))
 				board.set(x, y);
 	};
 
 	BOARD b;
-	set_col(b, 0, 0b111111111100);
-	set_col(b, 1, 0b110000001100);
-	set_col(b, 2, 0b110000001100);
-	set_col(b, 3, 0b110011001100);
-	set_col(b, 4, 0b110011001100);
-	set_col(b, 5, 0b110011001100);
-	set_col(b, 6, 0b110011001100);
-	set_col(b, 7, 0b110011001100);
-	set_col(b, 8, 0b000011000000);
-	set_col(b, 9, 0b000011111111);
+	set_row(b, 0, 0b1011000101);
+	set_row(b, 1, 0b1001100100);
+	set_row(b, 2, 0b1001000100);
+	set_row(b, 3, 0b0011001001);
+	set_row(b, 4, 0b0011101100);
+	set_row(b, 5, 0b0001000100);
+	set_row(b, 6, 0b1000000110);
+	set_row(b, 7, 0b1101000000);
+	set_row(b, 8, 0b0);
+	set_row(b, 9, 0b1001001);
+	set_row(b, 10, 0b1000);
+	set_row(b, 11, 0b1001);
+	set_row(b, 12, 0b1);
 
 	constexpr reachability::coord spawn{4, 20};
 
@@ -236,8 +241,7 @@ void test_map() {
 
 	auto run = [&]<reachability::search::search_config cfg>(const char* label) {
 		printf("\n=== %s ===\n", label);
-		test_piece.template operator()<cfg, std::get<5>(reachability::rules::SRS::block_list)>("O", b);
-		test_piece.template operator()<cfg, std::get<0>(reachability::rules::SRS::block_list)>("T", b);
+		test_piece.template operator()<cfg, std::get<4>(reachability::rules::SRS::block_list)>("L", b);
 	};
 
 	run.template operator()<reachability::search::search_config{}>("softdrop");
