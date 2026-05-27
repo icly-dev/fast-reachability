@@ -179,7 +179,7 @@ void bench() {
 // 	auto show_placements = [&]<reachability::search::search_config cfg, reachability::block B>(const char* piece_name, const char* cfg_label, BOARD board) {
 // 		std::array<BOARD, B.orientations> cache;
 // 		auto result = reachability::search::binary_bfs<B, spawn, 0, false, cfg>(board, &cache);
-// 		reachability::search::bfs_state<B, BOARD> state{cache, board};
+// 		reachability::search::move_checker<B, BOARD> state{cache, board};
 // 		std::cout << "\n--- " << cfg_label << ", " << piece_name << " ---\n";
 // 		int count = 0;
 // 		reachability::static_for<B.shapes>([&](auto rot) {
@@ -250,7 +250,7 @@ int main(int argc, char* argv[]) {
 	} else if (strcmp(argv[1], "bench") == 0) {
 		bench();
 		return 0;
-	} // else if (strcmp(argv[1], "configs") == 0) {
+	} //  else if (strcmp(argv[1], "configs") == 0) {
 	// 	assert(argc >= 2);
 	// 	if (argc == 2) {
 	// 		configs();

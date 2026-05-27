@@ -393,7 +393,7 @@ namespace reachability::search {
 	}
 
 	template <block B, typename board_t>
-	struct bfs_state {
+	struct move_checker {
 		static constexpr int orientations = B.orientations;
 		static constexpr int shapes = B.shapes;
 		static constexpr std::array<int, orientations> shape_for_rot = [] {
@@ -406,11 +406,20 @@ namespace reachability::search {
 		std::array<board_t, orientations> cache;
 		std::array<board_t, shapes> usable;
 
-		constexpr bfs_state(const std::array<board_t, orientations>& c, const board_t& board)
+		constexpr move_checker(const std::array<board_t, orientations>& c, const board_t& board)
 		    : cache(c) {
 			static_for<shapes>([&](auto i) {
 				usable[i] = usable_positions<B.minos[i]>(board);
 			});
+		}
+
+		template <bool check_consecutive = true, search_config cfg = search_config{}>
+		constexpr move_checker(const board_t& board, coord start, unsigned init_rot)
+		    : cache{} {
+			static_for<shapes>([&](auto i) {
+				usable[i] = usable_positions<B.minos[i]>(board);
+			});
+			binary_bfs<B, check_consecutive, cfg>(board, start, init_rot, &cache);
 		}
 
 		constexpr bool is_valid(int rot, int x, int y) const {
