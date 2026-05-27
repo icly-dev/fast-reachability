@@ -437,6 +437,10 @@ namespace reachability {
 				f(*this);
 			}
 		}
+		
+		const under_t* raw() const noexcept {
+			return reinterpret_cast<const under_t*>(&data);
+		}
 
 	    private:
 		template <unsigned W2, unsigned H2, typename under_t2>
