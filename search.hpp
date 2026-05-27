@@ -109,8 +109,12 @@ namespace reachability::search {
 		return *std::min_element(min_y.begin(), min_y.end());
 	}();
 
-	template <block block, coord start, std::size_t init_rot = 0, bool check_consecutive = true, search_config cfg = search_config{}, typename board_t>
-	constexpr std::array<board_t, block.shapes> binary_bfs(board_t data, std::array<board_t, block.orientations>* out_cache = nullptr) {
+	template <block block, bool check_consecutive, search_config cfg, typename board_t>
+	[[gnu::always_inline]] constexpr std::array<board_t, block.shapes> binary_bfs_impl(
+	    board_t (&usable)[block.shapes],
+	    std::array<board_t, block.orientations>& cache,
+	    std::array<bool, block.orientations>& need_visit,
+	    std::array<board_t, block.orientations>* out_cache) {
 		constexpr int orientations = block.orientations;
 		constexpr int shapes = block.shapes;
 		const auto dump_cache = [](auto* dst, auto& src) {
@@ -119,14 +123,6 @@ namespace reachability::search {
 				static_for<N>([&](auto i) { (*dst)[i] = src[i]; });
 			}
 		};
-		board_t usable[shapes];
-		static_for<shapes>([&] [[gnu::always_inline]] (auto i) {
-			usable[i] = usable_positions<block.minos[i]>(data);
-		});
-		constexpr auto start_at = [](auto rot) constexpr {
-			constexpr coord this_start = start + block.mino_index[rot][1_szc];
-			return coord{this_start[0_szc], std::min(this_start[1_szc], board_t::height - 1)};
-		};
 		constexpr auto MOVES = [] {
 			if constexpr (cfg.allow_softdrop) {
 				return std::array{coord{-1, 0}, coord{1, 0}, coord{0, -1}};
@@ -134,48 +130,6 @@ namespace reachability::search {
 				return std::array{coord{-1, 0}, coord{1, 0}};
 			}
 		}();
-		constexpr coord start2 = start_at(index_c<init_rot>);
-		constexpr auto init_rot2 = block.mino_index[index_c<init_rot>][0_szc];
-		if (!usable[init_rot2].template get<start2[0_szc], start2[1_szc]>()) [[unlikely]] {
-			if (out_cache)
-				out_cache->fill({});
-			return {};
-		}
-		bool all_reachable = [&] {
-			bool found_all = true;
-			static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
-				constexpr coord this_start = start_at(i);
-				constexpr auto rot = block.mino_index[i][0_szc];
-				if (!usable[rot].template get<this_start[0_szc], this_start[1_szc]>()) [[unlikely]] {
-					found_all = false;
-				}
-			});
-			return found_all;
-		}();
-		std::array<bool, orientations> need_visit{};
-		std::array<board_t, orientations> cache;
-		if constexpr (!cfg.allow_softdrop) {
-			static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
-				constexpr coord this_start = start_at(i);
-				constexpr auto rot = block.mino_index[i][0_szc];
-				if (usable[rot].template get<this_start[0_szc], this_start[1_szc]>()) {
-					board_t start_pos{};
-					start_pos.template set<this_start[0_szc], this_start[1_szc]>();
-					cache[i] = start_pos;
-					need_visit[i] = true;
-				}
-			});
-		} else if (all_reachable) {
-			need_visit.fill(true);
-			static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
-				constexpr coord this_start = start_at(i);
-				constexpr auto rot = block.mino_index[i][0_szc];
-				cache[i] = direct_reachable<this_start, check_consecutive>(usable[rot]);
-			});
-		} else {
-			cache[init_rot2] = direct_reachable<start2, check_consecutive>(usable[init_rot2]);
-			need_visit[init_rot2] = true;
-		}
 		const auto quick_check = [&] [[gnu::always_inline]] () {
 			bool found_all = true;
 			std::array<board_t, shapes> ret;
@@ -315,10 +269,125 @@ namespace reachability::search {
 		return ret;
 	}
 
+	template <block block, coord start, std::size_t init_rot = 0, bool check_consecutive = true, search_config cfg = search_config{}, typename board_t>
+	constexpr std::array<board_t, block.shapes> binary_bfs(board_t data, std::array<board_t, block.orientations>* out_cache = nullptr) {
+		constexpr int orientations = block.orientations;
+		constexpr int shapes = block.shapes;
+		board_t usable[shapes];
+		static_for<shapes>([&] [[gnu::always_inline]] (auto i) {
+			usable[i] = usable_positions<block.minos[i]>(data);
+		});
+		constexpr auto start_at = [](auto rot) constexpr {
+			constexpr coord this_start = start + block.mino_index[rot][1_szc];
+			return coord{this_start[0_szc], std::min(this_start[1_szc], board_t::height - 1)};
+		};
+		constexpr coord start2 = start_at(index_c<init_rot>);
+		constexpr auto init_rot2 = block.mino_index[index_c<init_rot>][0_szc];
+		if (!usable[init_rot2].template get<start2[0_szc], start2[1_szc]>()) [[unlikely]] {
+			if (out_cache)
+				out_cache->fill({});
+			return {};
+		}
+		bool all_reachable = [&] {
+			bool found_all = true;
+			static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
+				constexpr coord this_start = start_at(i);
+				constexpr auto rot = block.mino_index[i][0_szc];
+				if (!usable[rot].template get<this_start[0_szc], this_start[1_szc]>()) [[unlikely]] {
+					found_all = false;
+				}
+			});
+			return found_all;
+		}();
+		std::array<bool, orientations> need_visit{};
+		std::array<board_t, orientations> cache;
+		if constexpr (!cfg.allow_softdrop) {
+			static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
+				constexpr coord this_start = start_at(i);
+				constexpr auto rot = block.mino_index[i][0_szc];
+				if (usable[rot].template get<this_start[0_szc], this_start[1_szc]>()) {
+					board_t start_pos{};
+					start_pos.template set<this_start[0_szc], this_start[1_szc]>();
+					cache[i] = start_pos;
+					need_visit[i] = true;
+				}
+			});
+		} else if (all_reachable) {
+			need_visit.fill(true);
+			static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
+				constexpr coord this_start = start_at(i);
+				constexpr auto rot = block.mino_index[i][0_szc];
+				cache[i] = direct_reachable<this_start, check_consecutive>(usable[rot]);
+			});
+		} else {
+			cache[init_rot2] = direct_reachable<start2, check_consecutive>(usable[init_rot2]);
+			need_visit[init_rot2] = true;
+		}
+		return binary_bfs_impl<block, check_consecutive, cfg>(usable, cache, need_visit, out_cache);
+	}
+
+	template <block block, bool check_consecutive = true, search_config cfg = search_config{}, typename board_t>
+	constexpr std::array<board_t, block.shapes> binary_bfs(board_t data, coord start, unsigned init_rot, std::array<board_t, block.orientations>* out_cache = nullptr) {
+		constexpr int orientations = block.orientations;
+		constexpr int shapes = block.shapes;
+		board_t usable[shapes];
+		static_for<shapes>([&] [[gnu::always_inline]] (auto i) {
+			usable[i] = usable_positions<block.minos[i]>(data);
+		});
+		// Resolve start position for the given init_rot at runtime
+		unsigned init_shape = 0;
+		coord offset{0, 0};
+		static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
+			if ((unsigned)i == init_rot) [[unlikely]] {
+				constexpr auto entry = block.mino_index[i];
+				init_shape = entry[0_szc];
+				offset = entry[1_szc];
+			}
+		});
+		int sx = start[0_szc] + offset[0_szc];
+		int sy = std::min(start[1_szc] + offset[1_szc], int(board_t::height) - 1);
+		if (!usable[init_shape].get(sx, sy)) [[unlikely]] {
+			if (out_cache)
+				out_cache->fill({});
+			return {};
+		}
+		std::array<bool, orientations> need_visit{};
+		std::array<board_t, orientations> cache;
+		if constexpr (!cfg.allow_softdrop) {
+			static_for<orientations>([&] [[gnu::always_inline]] (auto i) {
+				constexpr auto entry = block.mino_index[i];
+				constexpr auto entry_off = entry[1_szc];
+				int tx = start[0_szc] + entry_off[0_szc];
+				int ty = std::min(start[1_szc] + entry_off[1_szc], int(board_t::height) - 1);
+				unsigned shape_i = entry[0_szc];
+				if (usable[shape_i].get(tx, ty)) {
+					board_t start_pos{};
+					start_pos.set(tx, ty);
+					cache[i] = start_pos;
+					need_visit[i] = true;
+				}
+			});
+		} else {
+			board_t start_pos{};
+			start_pos.set(sx, sy);
+			cache[init_rot] = start_pos;
+			need_visit[init_rot] = true;
+		}
+		return binary_bfs_impl<block, check_consecutive, cfg>(usable, cache, need_visit, out_cache);
+	}
+
 	template <typename RS, coord start, unsigned init_rot = 0, search_config cfg = search_config{}, typename board_t>
 	constexpr static_vector<board_t, 4> binary_bfs(board_t data, typename RS::piece_type b) {
 		return call_with_block<RS>(b, [=]<block B>() {
 			auto ret = binary_bfs<B, start, init_rot, true, cfg>(data);
+			return static_vector<board_t, 4>{std::span{ret}};
+		});
+	}
+
+	template <typename RS, bool check_consecutive = true, search_config cfg = search_config{}, typename board_t>
+	constexpr static_vector<board_t, 4> binary_bfs(board_t data, typename RS::piece_type b, coord start, unsigned init_rot) {
+		return call_with_block<RS>(b, [=]<block B>() {
+			auto ret = binary_bfs<B, check_consecutive, cfg>(data, start, init_rot);
 			return static_vector<board_t, 4>{std::span{ret}};
 		});
 	}

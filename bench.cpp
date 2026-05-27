@@ -82,6 +82,54 @@ void test() {
 	}
 }
 
+template <reachability::search::search_config cfg = reachability::search::search_config{}>
+uint64_t perft_runtime(BOARD b, const char* block, unsigned depth, unsigned height = 0) {
+	return reachability::call_with_block<reachability::rules::SRS>(reachability::block_from_name(*block), [&]<reachability::block B> [[gnu::always_inline]] () {
+		uint64_t n = 0;
+		constexpr int relative_height = reachability::search::lowest_position<B>;
+		b.call_with_height<reachability::tuple{6, 12, 24, 48}>(height + 3, [&] [[gnu::always_inline]] (auto nb) {
+			constexpr reachability::coord spawn_pos = reachability::coord{4, 20};
+			constexpr int necessary_height = spawn_pos[1_szc] + relative_height;
+			std::array<decltype(nb), B.shapes> reachable;
+			if constexpr (nb.height < necessary_height) {
+				reachable = reachability::search::binary_bfs<B, false, cfg>(nb, spawn_pos, 0);
+			} else {
+				bool check_consecutive = height > necessary_height;
+				if (check_consecutive) [[unlikely]] {
+					reachable = reachability::search::binary_bfs<B, true, cfg>(nb, spawn_pos, 0);
+				} else {
+					reachable = reachability::search::binary_bfs<B, false, cfg>(nb, spawn_pos, 0);
+				}
+			}
+			if (depth == 1) {
+				for (std::size_t rot = 0; rot < reachable.size(); ++rot)
+					n += reachable[rot].popcount();
+				return;
+			}
+			reachability::static_for<B.shapes>([&] [[gnu::always_inline]] (auto rot) {
+				constexpr auto mino = B.minos[rot];
+				constexpr auto range = reachability::mino_range<mino>();
+				constexpr auto max_y = range[3];
+				reachable[rot].for_each_bit([&] [[gnu::always_inline]] (int x, int y) {
+					BOARD placed = b | BOARD::put<mino>(x, y);
+					auto [cleared, cleared_lines] = placed.clear_full_lines();
+					unsigned new_height = std::max(height, unsigned(y + max_y + 1)) - cleared_lines;
+					n += perft_runtime<cfg>(cleared, block + 1, depth - 1, new_height);
+				});
+			});
+		});
+		return n;
+	});
+}
+
+pair<uint64_t, uint64_t> perft_runtime_with_time(const char* pieces) {
+	const auto start = std::chrono::high_resolution_clock::now();
+	uint64_t nodes = perft_runtime<{false, true, true}>(BOARD{}, pieces, std::strlen(pieces));
+	const auto end = std::chrono::high_resolution_clock::now();
+	const auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+	return {nodes, dt};
+}
+
 void bench() {
 	constexpr std::array data = {
 	    "IOLJSZT"sv,
@@ -194,6 +242,10 @@ int main(int argc, char* argv[]) {
 	if (strcmp(argv[1], "test") == 0) {
 		test();
 		std::cout << "All tests passed!" << std::endl;
+		return 0;
+	} else if (strcmp(argv[1], "runtime") == 0) {
+		const auto [nodes, dt] = perft_runtime_with_time(argv[2]);
+		std::cout << "Runtime: Nodes=" << nodes << " Time=" << dt << "ms NPS=" << (dt ? nodes * 1000 / dt : 0) << std::endl;
 		return 0;
 	} else if (strcmp(argv[1], "bench") == 0) {
 		bench();
