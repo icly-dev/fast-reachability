@@ -98,15 +98,77 @@ namespace reachability::search {
 	}
 
 	template <block b>
-	constexpr int lowest_position = [] {
-		std::array<int, b.orientations> min_y{};
+	constexpr int downmost_position = [] {
+		std::array<int, b.orientations> ys{};
 		static_for<b.orientations>([&](auto i) {
 			constexpr auto diff = b.mino_index[i];
 			constexpr auto mino = b.minos[index_c<diff[0_szc]>];
 			constexpr auto range = mino_range<mino>();
-			min_y[i] = range[1] + diff[1_szc][1_szc];
+			ys[i] = range[1] + diff[1_szc][1_szc];
 		});
-		return *std::min_element(min_y.begin(), min_y.end());
+		return *std::min_element(ys.begin(), ys.end());
+	}();
+
+	template <block b>
+	constexpr int upmost_position = [] {
+		std::array<int, b.orientations> ys{};
+		static_for<b.orientations>([&](auto i) {
+			constexpr auto diff = b.mino_index[i];
+			constexpr auto mino = b.minos[index_c<diff[0_szc]>];
+			constexpr auto range = mino_range<mino>();
+			ys[i] = range[3] + diff[1_szc][1_szc];
+		});
+		return *std::max_element(ys.begin(), ys.end());
+	}();
+
+	template <block b>
+	constexpr int leftmost_position = [] {
+		std::array<int, b.orientations> xs{};
+		static_for<b.orientations>([&](auto i) {
+			constexpr auto diff = b.mino_index[i];
+			constexpr auto mino = b.minos[index_c<diff[0_szc]>];
+			constexpr auto range = mino_range<mino>();
+			xs[i] = range[0] + diff[1_szc][0_szc];
+		});
+		return *std::min_element(xs.begin(), xs.end());
+	}();
+
+	template <block b>
+	constexpr int rightmost_position = [] {
+		std::array<int, b.orientations> xs{};
+		static_for<b.orientations>([&](auto i) {
+			constexpr auto diff = b.mino_index[i];
+			constexpr auto mino = b.minos[index_c<diff[0_szc]>];
+			constexpr auto range = mino_range<mino>();
+			xs[i] = range[2] + diff[1_szc][0_szc];
+		});
+		return *std::max_element(xs.begin(), xs.end());
+	}();
+
+	template <block b>
+	constexpr int max_width = [] {
+		int w = 0;
+		static_for<b.orientations>([&](auto i) {
+			constexpr auto diff = b.mino_index[i];
+			constexpr auto mino = b.minos[index_c<diff[0_szc]>];
+			constexpr auto range = mino_range<mino>();
+			int rot_w = range[2] - range[0] + 1;
+			if (rot_w > w) w = rot_w;
+		});
+		return w;
+	}();
+
+	template <block b>
+	constexpr int max_height = [] {
+		int h = 0;
+		static_for<b.orientations>([&](auto i) {
+			constexpr auto diff = b.mino_index[i];
+			constexpr auto mino = b.minos[index_c<diff[0_szc]>];
+			constexpr auto range = mino_range<mino>();
+			int rot_h = range[3] - range[1] + 1;
+			if (rot_h > h) h = rot_h;
+		});
+		return h;
 	}();
 
 	template <block block, bool check_consecutive, search_config cfg, typename board_t>

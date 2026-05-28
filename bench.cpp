@@ -18,10 +18,10 @@ template <reachability::search::search_config cfg = reachability::search::search
 uint64_t perft(BOARD b, const char* block, unsigned depth, unsigned height = 0) {
 	return reachability::call_with_block<reachability::rules::SRS>(reachability::block_from_name(*block), [&]<reachability::block B> [[gnu::always_inline]] () {
 		uint64_t n = 0;
-		constexpr int relative_height = reachability::search::lowest_position<B>;
+		constexpr int downmost = reachability::search::downmost_position<B>;
 		b.call_with_height<reachability::tuple{6, 12, 24, 48}>(height + 3, [&] [[gnu::always_inline]] (auto nb) {
 			constexpr reachability::coord spawn_pos = reachability::coord{4, 20};
-			constexpr int necessary_height = spawn_pos[1_szc] + relative_height;
+			constexpr int necessary_height = spawn_pos[1_szc] + downmost;
 			std::array<decltype(nb), B.shapes> reachable;
 			if constexpr (nb.height < necessary_height) {
 				reachable = reachability::search::binary_bfs<B, spawn_pos, 0, false, cfg>(nb);
@@ -86,10 +86,10 @@ template <reachability::search::search_config cfg = reachability::search::search
 uint64_t perft_runtime(BOARD b, const char* block, unsigned depth, unsigned height = 0) {
 	return reachability::call_with_block<reachability::rules::SRS>(reachability::block_from_name(*block), [&]<reachability::block B> [[gnu::always_inline]] () {
 		uint64_t n = 0;
-		constexpr int relative_height = reachability::search::lowest_position<B>;
+		constexpr int downmost = reachability::search::downmost_position<B>;
 		b.call_with_height<reachability::tuple{6, 12, 24, 48}>(height + 3, [&] [[gnu::always_inline]] (auto nb) {
 			constexpr reachability::coord spawn_pos = reachability::coord{4, 20};
-			constexpr int necessary_height = spawn_pos[1_szc] + relative_height;
+			constexpr int necessary_height = spawn_pos[1_szc] + downmost;
 			std::array<decltype(nb), B.shapes> reachable;
 			if constexpr (nb.height < necessary_height) {
 				reachable = reachability::search::binary_bfs<B, false, cfg>(nb, spawn_pos, 0);
