@@ -2,6 +2,7 @@
 #include <array>
 #include <utility>
 #include <concepts>
+#include <cstdint>
 #include "utils.hpp"
 
 namespace reachability {
@@ -15,6 +16,20 @@ namespace reachability {
 		return {co1[0_szc] + co2[0_szc], co1[1_szc] + co2[1_szc]};
 	}
 
+	// Pack up to 8 ASCII characters into a uint64_t for piece identification
+	struct piece_id {
+		uint64_t value;
+
+		template <std::size_t N>
+		constexpr piece_id(const char (&s)[N]) : value(0) {
+			constexpr std::size_t len = N - 1 < 8 ? N - 1 : 8;
+			for (std::size_t i = 0; i < len; ++i)
+				value |= (uint64_t)(unsigned char)s[i] << (i * 8);
+		}
+
+		constexpr bool operator==(const piece_id&) const = default;
+	};
+
 	// ========== Concept helpers ==========
 
 	constexpr auto mino_p = vec_of<type_of<coord>>;
@@ -22,11 +37,18 @@ namespace reachability {
 
 	// ========== Piece Definition ==========
 
-	template <typename Shapes, typename Offsets>
+	template <typename Shapes, typename Offsets, auto Id_ = piece_id("")>
 	struct piece_def {
+		static constexpr auto id = Id_;
 		Shapes shapes;	 // mino definitions per orientation
 		Offsets offsets; // orientation → {shape_index, translation}
 	};
+
+	// Helper to create a piece_def with an explicit piece ID
+	template <auto Id, typename Shapes, typename Offsets>
+	constexpr auto make_piece_def(Shapes shapes, Offsets offsets) {
+		return piece_def<Shapes, Offsets, Id>{shapes, offsets};
+	}
 
 	// ========== Kick Table ==========
 
@@ -40,10 +62,11 @@ namespace reachability {
 
 	// ========== Block ==========
 
-	template <typename Shapes, typename Offsets, typename Kicks>
+	template <typename Shapes, typename Offsets, typename Kicks, piece_id Id_ = piece_id("")>
 	struct block {
 		static constexpr int shapes = std::tuple_size_v<Shapes>;
 		static constexpr int orientations = std::tuple_size_v<Offsets>;
+		static constexpr piece_id piece_identity = Id_;
 
 		Shapes minos;
 		Offsets mino_index;
@@ -67,7 +90,7 @@ namespace reachability {
 				kick_list[j] = kick_list[j] + offset;
 			});
 		});
-		return block<shapes_t, offsets_t, kicks_t>{P.shapes, P.offsets, kicks};
+		return block<shapes_t, offsets_t, kicks_t, P.id>{P.shapes, P.offsets, kicks};
 	}();
 
 	// Alias for compat

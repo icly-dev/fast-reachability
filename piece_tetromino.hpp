@@ -14,49 +14,6 @@ namespace reachability {
 		I
 	};
 
-	constexpr auto name_of(block_type b) {
-		using enum block_type;
-		switch (b) {
-			case T:
-				return 'T';
-			case Z:
-				return 'Z';
-			case S:
-				return 'S';
-			case J:
-				return 'J';
-			case L:
-				return 'L';
-			case O:
-				return 'O';
-			case I:
-				return 'I';
-			default:
-				std::unreachable();
-		}
-	}
-
-	constexpr auto block_from_name(char c) {
-		using enum block_type;
-		switch (c) {
-			case 'T':
-				return T;
-			case 'Z':
-				return Z;
-			case 'S':
-				return S;
-			case 'J':
-				return J;
-			case 'L':
-				return L;
-			case 'O':
-				return O;
-			case 'I':
-				return I;
-			default:
-				std::unreachable();
-		}
-	}
 } // namespace reachability
 
 // Tetromino shape definitions and piece set
@@ -111,28 +68,28 @@ namespace reachability::rules {
 		    block_type::J, block_type::L, block_type::O, block_type::I};
 
 		static constexpr auto all = tuple{
-		    piece_def{T.minos, identity_offsets<4>()},
-		    piece_def{Z.minos, tuple{
-					   tuple{0, coord{0, 0}},
-					   tuple{1, coord{1, 0}},
-					   tuple{0, coord{0, -1}},
-					   tuple{1, coord{0, 0}},
-				       }},
-		    piece_def{S.minos, tuple{
-					   tuple{0, coord{0, 0}},
-					   tuple{1, coord{1, 0}},
-					   tuple{0, coord{0, -1}},
-					   tuple{1, coord{0, 0}},
-				       }},
-		    piece_def{J.minos, identity_offsets<4>()},
-		    piece_def{L.minos, identity_offsets<4>()},
-		    piece_def{O.minos, make_tuple(tuple{0, coord{0, 0}})},
-		    piece_def{I.minos, tuple{
-					   tuple{0, coord{0, 0}},
-					   tuple{1, coord{1, -2}},
-					   tuple{0, coord{0, -1}},
-					   tuple{1, coord{0, -2}},
-				       }},
+		    make_piece_def<piece_id("T")>(T.minos, identity_offsets<4>()),
+		    make_piece_def<piece_id("Z")>(Z.minos, tuple{
+							       tuple{0, coord{0, 0}},
+							       tuple{1, coord{1, 0}},
+							       tuple{0, coord{0, -1}},
+							       tuple{1, coord{0, 0}},
+							   }),
+		    make_piece_def<piece_id("S")>(S.minos, tuple{
+							       tuple{0, coord{0, 0}},
+							       tuple{1, coord{1, 0}},
+							       tuple{0, coord{0, -1}},
+							       tuple{1, coord{0, 0}},
+							   }),
+		    make_piece_def<piece_id("J")>(J.minos, identity_offsets<4>()),
+		    make_piece_def<piece_id("L")>(L.minos, identity_offsets<4>()),
+		    make_piece_def<piece_id("O")>(O.minos, make_tuple(tuple{0, coord{0, 0}})),
+		    make_piece_def<piece_id("I")>(I.minos, tuple{
+							       tuple{0, coord{0, 0}},
+							       tuple{1, coord{1, -2}},
+							       tuple{0, coord{0, -1}},
+							       tuple{1, coord{0, -2}},
+							   }),
 		};
 
 		static constexpr char name_of(piece_type p) {

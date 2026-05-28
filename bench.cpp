@@ -16,7 +16,7 @@ using BOARD = reachability::board_t<10, 48>;
 
 template <reachability::search::search_config cfg = reachability::search::search_config{}>
 uint64_t perft(BOARD b, const char* block, unsigned depth, unsigned height = 0) {
-	return reachability::call_with_block<reachability::rules::SRS>(reachability::block_from_name(*block), [&]<reachability::block B> [[gnu::always_inline]] () {
+	return reachability::call_with_block<reachability::rules::SRS>(reachability::rules::Tetromino::from_name(*block), [&]<reachability::block B> [[gnu::always_inline]] () {
 		uint64_t n = 0;
 		constexpr int downmost = reachability::search::downmost_position<B>;
 		b.call_with_height<reachability::tuple{6, 12, 24, 48}>(height + 3, [&] [[gnu::always_inline]] (auto nb) {
@@ -84,7 +84,7 @@ void test() {
 
 template <reachability::search::search_config cfg = reachability::search::search_config{}>
 uint64_t perft_runtime(BOARD b, const char* block, unsigned depth, unsigned height = 0) {
-	return reachability::call_with_block<reachability::rules::SRS>(reachability::block_from_name(*block), [&]<reachability::block B> [[gnu::always_inline]] () {
+	return reachability::call_with_block<reachability::rules::SRS>(reachability::rules::Tetromino::from_name(*block), [&]<reachability::block B> [[gnu::always_inline]] () {
 		uint64_t n = 0;
 		constexpr int downmost = reachability::search::downmost_position<B>;
 		b.call_with_height<reachability::tuple{6, 12, 24, 48}>(height + 3, [&] [[gnu::always_inline]] (auto nb) {
