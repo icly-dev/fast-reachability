@@ -44,9 +44,9 @@ uint64_t perft(BOARD b, const char* block, unsigned depth, unsigned height = 0) 
                 constexpr auto max_y = range[3];
                 reachable[rot].for_each_bit([&] [[gnu::always_inline]] (int x, int y) {
                     BOARD new_board = b | BOARD::put<mino>(x, y);
-                    auto [cleared, cleared_lines] = new_board.clear_full_lines();
-                    unsigned new_height = std::max(height, unsigned(y + max_y + 1)) - cleared_lines;
-                    n += perft<cfg>(cleared, block + 1, depth - 1, new_height);
+                    auto result = new_board.clear_full_lines();
+                    unsigned new_height = std::max(height, unsigned(y + max_y + 1)) - result.count;
+                    n += perft<cfg>(result.board, block + 1, depth - 1, new_height);
                 });
             });
         });
@@ -112,9 +112,9 @@ uint64_t perft_runtime(BOARD b, const char* block, unsigned depth, unsigned heig
                 constexpr auto max_y = range[3];
                 reachable[rot].for_each_bit([&] [[gnu::always_inline]] (int x, int y) {
                     BOARD placed = b | BOARD::put<mino>(x, y);
-                    auto [cleared, cleared_lines] = placed.clear_full_lines();
-                    unsigned new_height = std::max(height, unsigned(y + max_y + 1)) - cleared_lines;
-                    n += perft_runtime<cfg>(cleared, block + 1, depth - 1, new_height);
+                    auto result = placed.clear_full_lines();
+                    unsigned new_height = std::max(height, unsigned(y + max_y + 1)) - result.count;
+                    n += perft_runtime<cfg>(result.board, block + 1, depth - 1, new_height);
                 });
             });
         });

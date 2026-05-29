@@ -163,7 +163,7 @@ namespace reachability {
         static constexpr board_t put(int x, int y) {
             constexpr auto range = mino_range<mino>();
             constexpr int min_x = range[0];
-            board_t shape = shapes<mino>[y % lines_per_under];
+            board_t shape = get_shapes<mino>()[y % lines_per_under];
             static_for<num_of_under>([&](auto i) {
                 if (y / lines_per_under == i)
                     shape.template move_<coord{0, (int(i) - 1) * lines_per_under}>();
@@ -287,12 +287,33 @@ namespace reachability {
             return ret;
         }
 
-        [[gnu::always_inline]] constexpr auto clear_full_lines() const {
+        struct clear_result {
+            board_t board;
+            int count;
+            board_t full_rows; // bit (W-1) set for each cleared row
+
+            /// Check if a specific row @p y was cleared by this operation.
+            constexpr bool is_row_cleared(int y) const {
+                return full_rows.get(W - 1, y);
+            }
+
+            /// Check whether any cleared row exists strictly below height @p h
+            /// (i.e. rows 0 .. h-1).
+            constexpr bool has_cleared_below(int h) const {
+                for (int y = 0; y < h; ++y)
+                    if (full_rows.get(W - 1, y))
+                        return true;
+                return false;
+            }
+        };
+
+        [[gnu::always_inline]] constexpr clear_result clear_full_lines() const {
             const board_t is_full = all_bits();
 
             const data_t is_full_single = is_full.data & one_bit<W - 1>();
-            if (!to_board(is_full_single).any()) {
-                return std::pair{*this, 0};
+            const board_t full_rows = to_board(is_full_single);
+            if (!full_rows.any()) {
+                return {*this, 0, {}};
             }
             std::array<int, num_of_under> lines = {};
             static_for<num_of_under>([&] [[gnu::always_inline]] (auto i) {
@@ -317,7 +338,7 @@ namespace reachability {
                 return cleared[i] >> (W * prefix_sum[i]);
             }};
 
-            return std::pair{to_board((moved_down | remained) & mask_board()), all_lines};
+            return {to_board((moved_down | remained) & mask_board()), all_lines, full_rows};
         }
 
         constexpr board_t has_single_bit() const {
@@ -569,11 +590,14 @@ namespace reachability {
         }
 
         template <Wrap<mino_p> auto mino>
-        inline static std::array<board_t, lines_per_under> shapes = [] {
-            std::array<board_t, lines_per_under> shapes;
-            static_for<lines_per_under>([&](auto i) { shapes[i].data = shape_at_y<mino, i>().data; });
-            return shapes;
-        }();
+        static constexpr const std::array<board_t, lines_per_under>& get_shapes() {
+            static std::array<board_t, lines_per_under> s = [] {
+                std::array<board_t, lines_per_under> a;
+                static_for<lines_per_under>([&](auto i) { a[i].data = shape_at_y<mino, i>().data; });
+                return a;
+            }();
+            return s;
+        }
 #ifndef USE_STME
         static void assign(data_t& data, int i, under_t value) {
             data[i] = value;

@@ -52,7 +52,7 @@ namespace reachability::rules {
         tuple{coord{1, 0}, coord{0, 0}, coord{-1, 0}, coord{-1, -1}}, // 2
         tuple{coord{0, -1}, coord{0, 0}, coord{0, 1}, coord{-1, 1}}   // L
     }};
-    inline constexpr pure_block O = {make_tuple(
+    inline constexpr pure_block O = {reachability::make_tuple(
         tuple{coord{0, 0}, coord{1, 0}, coord{0, 1}, coord{1, 1}})};
     inline constexpr pure_block I = {tuple{
         tuple{coord{-1, 0}, coord{0, 0}, coord{1, 0}, coord{2, 0}}, // 0
@@ -83,7 +83,7 @@ namespace reachability::rules {
                                                    }),
             make_piece_def<piece_id("J")>(J.minos, identity_offsets<4>()),
             make_piece_def<piece_id("L")>(L.minos, identity_offsets<4>()),
-            make_piece_def<piece_id("O")>(O.minos, make_tuple(tuple{0, coord{0, 0}})),
+            make_piece_def<piece_id("O")>(O.minos, reachability::make_tuple(tuple{0, coord{0, 0}})),
             make_piece_def<piece_id("I")>(I.minos, tuple{
                                                        tuple{0, coord{0, 0}},
                                                        tuple{1, coord{1, -2}},
