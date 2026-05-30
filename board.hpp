@@ -98,6 +98,9 @@ namespace reachability {
         }
 
         constexpr bool operator!=(board_t other) const {
+#ifdef USE_STME
+            return any_of(data != other.data);
+#else
             // manually compare to avoid GCC 16 simd library bug
             constexpr std::size_t N = num_of_under;
             std::array<under_t, N> a, b;
@@ -107,9 +110,13 @@ namespace reachability {
                 if (a[i] != b[i])
                     return true;
             return false;
+#endif
         }
 
         [[gnu::always_inline]] constexpr bool contains(board_t other) const {
+#ifdef USE_STME
+            return !any_of(other.data & ~data);
+#else
             // manually check to avoid GCC 16 simd library bug
             constexpr std::size_t N = num_of_under;
             std::array<under_t, N> tmp;
@@ -118,6 +125,7 @@ namespace reachability {
                 if (tmp[i] != 0)
                     return false;
             return true;
+#endif
         }
 
         constexpr board_t operator~() const {
