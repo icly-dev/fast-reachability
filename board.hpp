@@ -467,7 +467,7 @@ namespace reachability {
         constexpr int highest_in_column() const {
             auto col_mask = one_bit<x>();
 
-            data_t compressed = data_t{[&](auto i) -> under_t {
+            data_t compressed{[&] [[gnu::always_inline]] (auto i) -> under_t {
                 return cxx26bp::bit_compress<under_t>(data[i], col_mask[i]);
             }};
 
@@ -479,6 +479,33 @@ namespace reachability {
                 }
             }
             return -1;
+        }
+
+        template <int x>
+        constexpr int holes_in_column() const {
+            auto col_mask = one_bit<x>();
+
+            data_t compressed{[&] [[gnu::always_inline]] (auto i) -> under_t {
+                return cxx26bp::bit_compress<under_t>(data[i], col_mask[i]);
+            }};
+
+            int pop = 0;
+            static_for<num_of_under>([&] [[gnu::always_inline]] (auto i) {
+                pop += std::popcount(under_t(compressed[i]));
+            });
+            if (pop == 0)
+                return 0;
+
+            int hi_lane = -1;
+            for (int ui = num_of_under - 1; ui >= 0; --ui) {
+                if (compressed[ui] != 0) {
+                    hi_lane = ui;
+                    break;
+                }
+            }
+            int msb = std::numeric_limits<under_t>::digits - 1 - std::countl_zero(under_t(compressed[hi_lane]));
+            int h_max = hi_lane * lines_per_under + msb;
+            return (h_max + 1) - pop;
         }
 
     private:
@@ -525,7 +552,7 @@ namespace reachability {
                 ret.set<dx, j>();
             });
             return ret.data;
-        };
+        }
 
         static constexpr data_t mask_board() {
             return data_t{[](auto i) {
