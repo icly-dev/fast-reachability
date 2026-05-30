@@ -463,6 +463,24 @@ namespace reachability {
             return reinterpret_cast<const under_t*>(&data);
         }
 
+        template <int x>
+        constexpr int highest_in_column() const {
+            auto col_mask = one_bit<x>();
+
+            data_t compressed = data_t{[&](auto i) -> under_t {
+                return cxx26bp::bit_compress<under_t>(data[i], col_mask[i]);
+            }};
+
+            for (int ui = num_of_under - 1; ui >= 0; --ui) {
+                under_t v = compressed[ui];
+                if (v != 0) {
+                    int msb = std::numeric_limits<under_t>::digits - 1 - std::countl_zero(v);
+                    return ui * lines_per_under + msb;
+                }
+            }
+            return -1;
+        }
+
     private:
         template <unsigned W2, unsigned H2, typename under_t2>
             requires valid_board<W2, H2, under_t2>
