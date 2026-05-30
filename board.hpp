@@ -464,13 +464,16 @@ namespace reachability {
         }
 
         template <int x>
-        constexpr int highest_in_column() const {
+        constexpr std::array<under_t, num_of_under> compress_column_array() const {
             auto col_mask = one_bit<x>();
+            std::array<under_t, num_of_under> out{};
+            for (std::size_t i = 0; i < std::size_t(num_of_under); ++i) {
+                out[i] = cxx26bp::bit_compress<under_t>(data[i], col_mask[i]);
+            }
+            return out;
+        }
 
-            data_t compressed{[&] [[gnu::always_inline]] (auto i) -> under_t {
-                return cxx26bp::bit_compress<under_t>(data[i], col_mask[i]);
-            }};
-
+        static constexpr int highest_in_compressed(const std::array<under_t, num_of_under>& compressed) {
             for (int ui = num_of_under - 1; ui >= 0; --ui) {
                 under_t v = compressed[ui];
                 if (v != 0) {
@@ -481,21 +484,13 @@ namespace reachability {
             return -1;
         }
 
-        template <int x>
-        constexpr int holes_in_column() const {
-            auto col_mask = one_bit<x>();
-
-            data_t compressed{[&] [[gnu::always_inline]] (auto i) -> under_t {
-                return cxx26bp::bit_compress<under_t>(data[i], col_mask[i]);
-            }};
-
+        static constexpr int holes_in_compressed(const std::array<under_t, num_of_under>& compressed) {
             int pop = 0;
-            static_for<num_of_under>([&] [[gnu::always_inline]] (auto i) {
-                pop += std::popcount(under_t(compressed[i]));
-            });
+            for (std::size_t i = 0; i < std::size_t(num_of_under); ++i) {
+                pop += std::popcount(static_cast<under_t>(compressed[i]));
+            }
             if (pop == 0)
                 return 0;
-
             int hi_lane = -1;
             for (int ui = num_of_under - 1; ui >= 0; --ui) {
                 if (compressed[ui] != 0) {
@@ -503,9 +498,21 @@ namespace reachability {
                     break;
                 }
             }
-            int msb = std::numeric_limits<under_t>::digits - 1 - std::countl_zero(under_t(compressed[hi_lane]));
+            int msb = std::numeric_limits<under_t>::digits - 1 - std::countl_zero(static_cast<under_t>(compressed[hi_lane]));
             int h_max = hi_lane * lines_per_under + msb;
             return (h_max + 1) - pop;
+        }
+
+        template <int x>
+        constexpr int highest_in_column() const {
+            auto compressed = this->template compress_column_array<x>();
+            return highest_in_compressed(compressed);
+        }
+
+        template <int x>
+        constexpr int holes_in_column() const {
+            auto compressed = this->template compress_column_array<x>();
+            return holes_in_compressed(compressed);
         }
 
     private:
