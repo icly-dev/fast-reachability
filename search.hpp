@@ -539,7 +539,7 @@ namespace reachability::search {
                     constexpr auto kick = table[j];
                     constexpr int dx = kick[0_szc], dy = kick[1_szc];
                     int nx = x + dx, ny = y + dy;
-                    if (is_valid(rot_to, nx, ny)) {
+                    if (nx >= 0 && nx < static_cast<int>(board_t::width) && ny >= 0 && is_valid(rot_to, nx, ny)) {
                         new_x = nx;
                         new_y = ny;
                         found = true;
