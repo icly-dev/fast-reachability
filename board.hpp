@@ -113,6 +113,10 @@ namespace reachability {
 #endif
         }
 
+        constexpr bool operator==(board_t other) const {
+            return !(*this != other);
+        }
+
         [[gnu::always_inline]] constexpr bool contains(board_t other) const {
 #ifdef USE_STME
             return !any_of(other.data & ~data);
