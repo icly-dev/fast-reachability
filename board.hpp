@@ -12,8 +12,11 @@
 #include "bit_permutations.hpp"
 #ifdef USE_STME
 #include "stme.hpp"
-#else
+#elif __has_include(<experimental/simd>)
 #include <experimental/simd>
+#else
+#include "stme.hpp"
+#define USE_STME
 #endif
 
 namespace reachability {

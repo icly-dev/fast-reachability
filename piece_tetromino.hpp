@@ -110,7 +110,7 @@ namespace reachability::rules {
                 case I:
                     return 'I';
                 default:
-                    std::unreachable();
+                    return '?';
             }
         }
 
