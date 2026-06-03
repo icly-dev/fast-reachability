@@ -194,16 +194,20 @@ namespace cxx26bp::detail {
     // ===========================
 
 #ifdef CXX26_BIT_PERMUTATIONS_GNU
+#if defined(__SIZEOF_INT128__)
 #define CXX26_BIT_PERMUTATIONS_U128
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
     using int128_t = __int128;
     using uint128_t = unsigned __int128;
 #pragma GCC diagnostic pop
-#else
+#endif
+#endif
+
+#ifndef CXX26_BIT_PERMUTATIONS_U128
     struct int128_t;
     struct uint128_t;
-#endif // CXX26_BIT_PERMUTATIONS_GNU
+#endif
 
     template <>
     inline constexpr int digits_v<int128_t> = 127;
@@ -411,8 +415,15 @@ namespace cxx26bp {
                 const __m128i x_128 = _mm_set_epi64x(0, x);
                 const __m128i neg1_128 = _mm_set_epi64x(0, -1);
                 const __m128i result_128 = _mm_clmulepi64_si128(x_128, neg1_128, 0);
+#if defined(CXX26_BIT_PERMUTATIONS_X86_64)
                 const auto lo64 = static_cast<std::uint64_t>(_mm_extract_epi64(result_128, 0));
                 const auto hi64 = static_cast<std::uint64_t>(_mm_extract_epi64(result_128, 1));
+#else
+                alignas(16) std::uint64_t tmp[2];
+                _mm_store_si128(reinterpret_cast<__m128i*>(tmp), result_128);
+                const auto lo64 = tmp[0];
+                const auto hi64 = tmp[1];
+#endif
                 const auto high = static_cast<T>(shr(lo64, N)) | static_cast<T>(shl(hi64, 64 - N));
                 return {
                     .low_bits = static_cast<T>(lo64),
@@ -568,7 +579,13 @@ namespace cxx26bp {
                     const __m128i x_128 = _mm_set_epi64x(0, x);
                     const __m128i neg1_128 = _mm_set_epi64x(0, -1);
                     const __m128i result_128 = _mm_clmulepi64_si128(x_128, neg1_128, 0);
+#if defined(CXX26_BIT_PERMUTATIONS_X86_64)
                     return static_cast<T>(_mm_extract_epi64(result_128, 0));
+#else
+                    alignas(16) std::uint64_t tmp[2];
+                    _mm_store_si128(reinterpret_cast<__m128i*>(tmp), result_128);
+                    return static_cast<T>(tmp[0]);
+#endif
                 }
             }
 #endif
@@ -931,9 +948,12 @@ namespace cxx26bp {
         if CXX26_BIT_PERMUTATIONS_NOT_CONSTANT_EVALUATED {
             if constexpr (N <= 32) {
                 return static_cast<T>(_pext_u32(x, m));
-            } else if constexpr (N <= 64) {
+            }
+#if defined(CXX26_BIT_PERMUTATIONS_X86_64)
+            else if constexpr (N <= 64) {
                 return static_cast<T>(_pext_u64(x, m));
             }
+#endif
         }
 #endif
 
