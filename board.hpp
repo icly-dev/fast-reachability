@@ -42,6 +42,11 @@ namespace reachability {
         static constexpr int remaining_in_last = num_of_under * used_bits_per_under - H * W;
         static constexpr under_t last_mask = mask >> remaining_in_last;
 
+        static constexpr int total_compressed_bits = num_of_under * lines_per_under;
+        using compressed_column_t = std::conditional_t<total_compressed_bits <= 8, uint8_t,
+                                    std::conditional_t<total_compressed_bits <= 16, uint16_t,
+                                    std::conditional_t<total_compressed_bits <= 32, uint32_t, uint64_t>>>;
+
         constexpr board_t() = default;
 
         constexpr board_t(std::string_view s) : board_t(convert_to_array(s)) {}
@@ -479,55 +484,15 @@ namespace reachability {
         }
 
         template <int x>
-        constexpr std::array<under_t, num_of_under> compress_column_array() const {
+        constexpr compressed_column_t compress_column_array() const {
             auto col_mask = one_bit<x>();
-            std::array<under_t, num_of_under> out{};
+            compressed_column_t out = 0;
             for (std::size_t i = 0; i < std::size_t(num_of_under); ++i) {
-                out[i] = cxx26bp::bit_compress<under_t>(data[i], col_mask[i]);
+                out |= static_cast<compressed_column_t>(
+                    cxx26bp::bit_compress<under_t>(data[i], col_mask[i])
+                ) << (i * lines_per_under);
             }
             return out;
-        }
-
-        static constexpr int highest_in_compressed(const std::array<under_t, num_of_under>& compressed) {
-            for (int ui = num_of_under - 1; ui >= 0; --ui) {
-                under_t v = compressed[ui];
-                if (v != 0) {
-                    int msb = std::numeric_limits<under_t>::digits - 1 - std::countl_zero(v);
-                    return ui * lines_per_under + msb;
-                }
-            }
-            return -1;
-        }
-
-        static constexpr int holes_in_compressed(const std::array<under_t, num_of_under>& compressed) {
-            int pop = 0;
-            for (std::size_t i = 0; i < std::size_t(num_of_under); ++i) {
-                pop += std::popcount(static_cast<under_t>(compressed[i]));
-            }
-            if (pop == 0)
-                return 0;
-            int hi_lane = -1;
-            for (int ui = num_of_under - 1; ui >= 0; --ui) {
-                if (compressed[ui] != 0) {
-                    hi_lane = ui;
-                    break;
-                }
-            }
-            int msb = std::numeric_limits<under_t>::digits - 1 - std::countl_zero(static_cast<under_t>(compressed[hi_lane]));
-            int h_max = hi_lane * lines_per_under + msb;
-            return (h_max + 1) - pop;
-        }
-
-        template <int x>
-        constexpr int highest_in_column() const {
-            auto compressed = this->template compress_column_array<x>();
-            return highest_in_compressed(compressed);
-        }
-
-        template <int x>
-        constexpr int holes_in_column() const {
-            auto compressed = this->template compress_column_array<x>();
-            return holes_in_compressed(compressed);
         }
 
     private:
