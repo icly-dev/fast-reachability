@@ -14,8 +14,7 @@ using reachability::operator""_szc;
 
 using BOARD = reachability::board_t<10, 48>;
 
-template <reachability::search::search_config cfg = reachability::search::search_config{}>
-uint64_t perft(BOARD b, const char* block, unsigned depth, unsigned height = 0) {
+uint64_t perft(BOARD b, const char* block, unsigned depth, unsigned height = 0, reachability::search::search_config cfg = {}) {
     return reachability::call_with_block<reachability::rules::SRS>(reachability::rules::Tetromino::from_name(*block), [&]<reachability::block B> [[gnu::always_inline]] () {
         uint64_t n = 0;
         constexpr int downmost = reachability::search::downmost_position<B>;
@@ -24,13 +23,13 @@ uint64_t perft(BOARD b, const char* block, unsigned depth, unsigned height = 0) 
             constexpr int necessary_height = spawn_pos[1_szc] + downmost;
             std::array<decltype(nb), B.shapes> reachable;
             if constexpr (nb.height < necessary_height) {
-                reachable = reachability::search::binary_bfs<B, spawn_pos, 0, false, cfg>(nb);
+                reachable = reachability::search::binary_bfs<B, spawn_pos, 0, false>(nb, cfg);
             } else {
                 bool check_consecutive = height > necessary_height;
                 if (check_consecutive) [[unlikely]] {
-                    reachable = reachability::search::binary_bfs<B, spawn_pos, 0, true, cfg>(nb);
+                    reachable = reachability::search::binary_bfs<B, spawn_pos, 0, true>(nb, cfg);
                 } else {
-                    reachable = reachability::search::binary_bfs<B, spawn_pos, 0, false, cfg>(nb);
+                    reachable = reachability::search::binary_bfs<B, spawn_pos, 0, false>(nb, cfg);
                 }
             }
             if (depth == 1) {
@@ -46,7 +45,7 @@ uint64_t perft(BOARD b, const char* block, unsigned depth, unsigned height = 0) 
                     BOARD new_board = b | BOARD::put<mino>(x, y);
                     auto result = new_board.clear_full_lines();
                     unsigned new_height = std::max(height, unsigned(y + max_y + 1)) - result.count;
-                    n += perft<cfg>(result.board, block + 1, depth - 1, new_height);
+                    n += perft(result.board, block + 1, depth - 1, new_height, cfg);
                 });
             });
         });
@@ -55,8 +54,9 @@ uint64_t perft(BOARD b, const char* block, unsigned depth, unsigned height = 0) 
 }
 
 pair<uint64_t, uint64_t> perft_with_time(BOARD b, const char* block, unsigned depth) {
+    constexpr auto cfg = reachability::search::search_config{false, true, true};
     const auto start = std::chrono::high_resolution_clock::now();
-    uint64_t nodes = perft<{false, true, true}>(b, block, depth);
+    uint64_t nodes = perft(b, block, depth, 0, cfg);
     const auto end = std::chrono::high_resolution_clock::now();
     const auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     return {nodes, dt};
@@ -75,15 +75,14 @@ void test() {
     };
     for (const auto& [blocks, expected] : test_data) {
         BOARD state;
-        constexpr auto cfg = reachability::search::search_config{false, true, true};
-        const uint64_t result = perft<cfg>(state, blocks.data(), blocks.size());
+        const auto cfg = reachability::search::search_config{false, true, true};
+        const uint64_t result = perft(state, blocks.data(), blocks.size(), 0, cfg);
         std::cout << "Testing blocks: " << blocks << ", expected: " << expected << ", got: " << result << std::endl;
         assert(result == expected);
     }
 }
 
-template <reachability::search::search_config cfg = reachability::search::search_config{}>
-uint64_t perft_runtime(BOARD b, const char* block, unsigned depth, unsigned height = 0) {
+uint64_t perft_runtime(BOARD b, const char* block, unsigned depth, unsigned height = 0, reachability::search::search_config cfg = {}) {
     return reachability::call_with_block<reachability::rules::SRS>(reachability::rules::Tetromino::from_name(*block), [&]<reachability::block B> [[gnu::always_inline]] () {
         uint64_t n = 0;
         constexpr int downmost = reachability::search::downmost_position<B>;
@@ -92,13 +91,13 @@ uint64_t perft_runtime(BOARD b, const char* block, unsigned depth, unsigned heig
             constexpr int necessary_height = spawn_pos[1_szc] + downmost;
             std::array<decltype(nb), B.shapes> reachable;
             if constexpr (nb.height < necessary_height) {
-                reachable = reachability::search::binary_bfs<B, false, cfg>(nb, spawn_pos, 0);
+                reachable = reachability::search::binary_bfs<B, false>(nb, cfg, spawn_pos, 0);
             } else {
                 bool check_consecutive = height > necessary_height;
                 if (check_consecutive) [[unlikely]] {
-                    reachable = reachability::search::binary_bfs<B, true, cfg>(nb, spawn_pos, 0);
+                    reachable = reachability::search::binary_bfs<B, true>(nb, cfg, spawn_pos, 0);
                 } else {
-                    reachable = reachability::search::binary_bfs<B, false, cfg>(nb, spawn_pos, 0);
+                    reachable = reachability::search::binary_bfs<B, false>(nb, cfg, spawn_pos, 0);
                 }
             }
             if (depth == 1) {
@@ -114,7 +113,7 @@ uint64_t perft_runtime(BOARD b, const char* block, unsigned depth, unsigned heig
                     BOARD placed = b | BOARD::put<mino>(x, y);
                     auto result = placed.clear_full_lines();
                     unsigned new_height = std::max(height, unsigned(y + max_y + 1)) - result.count;
-                    n += perft_runtime<cfg>(result.board, block + 1, depth - 1, new_height);
+                    n += perft_runtime(result.board, block + 1, depth - 1, new_height, cfg);
                 });
             });
         });
@@ -123,8 +122,9 @@ uint64_t perft_runtime(BOARD b, const char* block, unsigned depth, unsigned heig
 }
 
 pair<uint64_t, uint64_t> perft_runtime_with_time(const char* pieces) {
+    constexpr auto cfg = reachability::search::search_config{false, true, true};
     const auto start = std::chrono::high_resolution_clock::now();
-    uint64_t nodes = perft_runtime<{false, true, true}>(BOARD{}, pieces, std::strlen(pieces));
+    uint64_t nodes = perft_runtime(BOARD{}, pieces, std::strlen(pieces), 0, cfg);
     const auto end = std::chrono::high_resolution_clock::now();
     const auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     return {nodes, dt};
