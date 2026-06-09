@@ -102,92 +102,109 @@ void bench() {
     std::cout << "Total Nodes: " << nodes_sum << " Total Time: " << dt_sum << "ms" << " Average NPS: " << (nodes_sum * 1000) / (dt_sum + 1) << std::endl;
 }
 
-// void configs() {
-// 	auto set_row = [](BOARD& board, int y, unsigned int bits) {
-// 		for (int x = 0; x < 10; ++x)
-// 			if (bits & (1u << x))
-// 				board.set(x, y);
-// 	};
+pair<uint64_t, uint64_t> perft_with_time(BOARD b, const char* block, unsigned depth, reachability::search::search_config cfg) {
+    const auto start = std::chrono::high_resolution_clock::now();
+    uint64_t nodes = perft(b, block, depth, 0, cfg);
+    const auto end = std::chrono::high_resolution_clock::now();
+    const auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    return {nodes, dt};
+}
 
-// 	BOARD b;
-// 	set_row(b, 0, 0b1011000101);
-// 	set_row(b, 1, 0b1001100100);
-// 	set_row(b, 2, 0b1001000100);
-// 	set_row(b, 3, 0b0011001001);
-// 	set_row(b, 4, 0b0011101100);
-// 	set_row(b, 5, 0b0001000100);
-// 	set_row(b, 6, 0b1000000110);
-// 	set_row(b, 7, 0b1101000000);
-// 	set_row(b, 8, 0b0);
-// 	set_row(b, 9, 0b1001001);
-// 	set_row(b, 10, 0b1000);
-// 	set_row(b, 11, 0b1001);
-// 	set_row(b, 12, 0b1);
-// 	std::cout << "Board:\n"
-// 		  << to_string<16>(b);
+reachability::search::search_config parse_config(int argc, char* argv[]) {
+    reachability::search::search_config cfg{
+        .allow_180 = false,
+        .allow_softdrop = false,
+        .allow_sonicdrop = false,
+        .allow_20g = false
+    };
+    for (int i = 1; i < argc; i++) {
+        if (strncmp(argv[i], "--config=", 9) == 0) {
+            const char* s = argv[i] + 9;
+            while (*s) {
+                switch (*s) {
+                    case 'x': cfg.allow_180 = true; break;
+                    case 'd': cfg.allow_softdrop = true; break;
+                    case 'D': cfg.allow_sonicdrop = true; break;
+                    case 'g': cfg.allow_20g = true; break;
+                }
+                s++;
+            }
+        }
+    }
+    return cfg;
+}
 
-// 	constexpr reachability::coord spawn{4, 20};
+const char* find_piece(int argc, char* argv[]) {
+    for (int i = 1; i < argc; i++) {
+        if (strncmp(argv[i], "--config=", 9) != 0 && strncmp(argv[i], "--", 2) != 0
+            && strcmp(argv[i], "test") != 0 && strcmp(argv[i], "bench") != 0) {
+            return argv[i];
+        }
+    }
+    return "";
+}
 
-// 	auto show_placements = [&]<reachability::search::search_config cfg, reachability::block B>(const char* piece_name, const char* cfg_label, BOARD board) {
-// 		std::array<BOARD, B.orientations> cache;
-// 		auto result = reachability::search::binary_bfs<B, spawn, 0, false, cfg>(board, &cache);
-// 		reachability::search::move_checker<B, BOARD> state{cache, board};
-// 		std::cout << "\n--- " << cfg_label << ", " << piece_name << " ---\n";
-// 		int count = 0;
-// 		reachability::static_for<B.shapes>([&](auto rot) {
-// 			constexpr auto mino = B.minos[rot];
-// 			constexpr int N = B.orientations;
-// 			result[rot].for_each_bit([&](int x, int y) {
-// 				bool L = state.can_move_left(rot, x, y);
-// 				bool R = state.can_move_right(rot, x, y);
-// 				bool U = state.can_move_up(rot, x, y);
-// 				bool D = state.can_move_down(rot, x, y);
+bool has_flag(int argc, char* argv[], const char* flag) {
+    for (int i = 1; i < argc; i++)
+        if (strcmp(argv[i], flag) == 0)
+            return true;
+    return false;
+}
 
-// 				auto try_show = [&](int to_rot, const char* label) {
-// 					auto [nr, nx, ny] = state.try_rotate(rot, to_rot, x, y);
-// 					std::cout << "    " << label << ": ";
-// 					if (nr != rot)
-// 						std::cout << rot << "\u2192" << nr << " (" << nx << "," << ny << ")\n";
-// 					else
-// 						std::cout << rot << "\u2192" << to_rot << " (no)\n";
-// 				};
-// 				try_show((rot + 1) % N, "R");
-// 				try_show((rot + N - 1) % N, "L");
-// 				try_show((rot + 2) % N, "180");
+void diagnose(BOARD board, const char* pieces, reachability::search::search_config cfg, const char* label) {
+    const auto depth = strlen(pieces);
+    const auto [nodes, dt] = perft_with_time(board, pieces, depth, cfg);
+    std::cout << label << " Depth: " << depth
+              << " Nodes: " << nodes
+              << " Time: " << dt << "ms"
+              << " NPS: " << (nodes * 1000) / static_cast<uint64_t>(dt + 1) << std::endl;
 
-// 				BOARD placed = board | BOARD::put<mino>(x, y);
-// 				auto [cleared, cl] = placed.clear_full_lines();
-// 				std::cout << "placement " << ++count
-// 					  << " (rot=" << rot << " x=" << x << " y=" << y
-// 					  << " L=" << L << " R=" << R << " U=" << U << " D=" << D
-// 					  << " cleared=" << cl << "):\n"
-// 					  << to_string<16>(cleared);
-// 			});
-// 		});
-// 	};
+    constexpr auto spawn = reachability::coord{4, 20};
+    int move_count = 0;
 
-// 	auto run_config = [&]<reachability::search::search_config cfg>(const char* label) {
-// 		show_placements.template operator()<cfg, std::get<4>(reachability::rules::SRS::block_list)>("L", label, b);
-// 	};
-
-// 	run_config.template operator()<reachability::search::search_config{true, true, true}>("softdrop");
-// 	run_config.template operator()<reachability::search::search_config{true, false, true}>("sonicdrop");
-// 	run_config.template operator()<reachability::search::search_config{true, false, false}>("harddrop");
-// }
-
-// void perft_configs(const char* pieces) {
-// 	const auto len = std::strlen(pieces);
-// 	auto run = [&]<reachability::search::search_config cfg>(const char* label) {
-// 		const auto start = std::chrono::high_resolution_clock::now();
-// 		uint64_t nodes = perft<cfg>(BOARD{}, pieces, len);
-// 		const auto end = std::chrono::high_resolution_clock::now();
-// 		auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-// 		std::cout << label << ": Nodes=" << nodes << " Time=" << dt << "ms" << std::endl;
-// 	};
-// 	run.template operator()<reachability::search::search_config{true, true, true}>("softdrop");
-// 	run.template operator()<reachability::search::search_config{true, false, true}>("sonicdrop");
-// 	run.template operator()<reachability::search::search_config{true, false, false}>("harddrop");
-// }
+    auto show = [&](BOARD b, const char* p, unsigned remaining, unsigned height, auto& self) -> void {
+        if (remaining == 0) return;
+        reachability::call_with_block<reachability::rules::SRS>(
+            reachability::rules::Tetromino::from_name(*p),
+            [&]<reachability::block B> -> int {
+                constexpr int downmost = reachability::search::downmost_position<B>;
+                b.call_with_height<reachability::tuple{6, 12, 24, 48}>(height + 3, [&](auto nb) {
+                    constexpr int necessary_height = spawn[1_szc] + downmost;
+                    std::array<decltype(nb), B.shapes> reachable;
+                    if constexpr (nb.height < necessary_height) {
+                        reachable = reachability::search::binary_bfs<B, false>(nb, cfg, spawn, 0);
+                    } else {
+                        bool check_consecutive = height > (unsigned)necessary_height;
+                        if (check_consecutive) [[unlikely]] {
+                            reachable = reachability::search::binary_bfs<B, true>(nb, cfg, spawn, 0);
+                        } else {
+                            reachable = reachability::search::binary_bfs<B, false>(nb, cfg, spawn, 0);
+                        }
+                    }
+                    reachability::static_for<B.shapes>([&](auto shape_idx) {
+                        constexpr auto mino = B.minos[shape_idx];
+                        constexpr auto range = reachability::mino_range<mino>();
+                        constexpr auto max_y = range[3];
+                        reachable[shape_idx].for_each_bit([&](int x, int y) {
+                            BOARD new_board = b | BOARD::put<mino>(x, y);
+                            auto [cleared, cleared_count, _] = new_board.clear_full_lines();
+                            unsigned new_height = std::max(height, unsigned(y + max_y + 1)) - cleared_count;
+                            std::cout << "move " << ++move_count << ": "
+                                      << *p << " r" << shape_idx << " (" << x << "," << y << ")"
+                                      << (cleared_count ? " clear " + std::to_string(cleared_count) : "")
+                                      << "\n" << to_string<16>(cleared) << std::flush;
+                            std::cin.get();
+                            if (remaining > 1)
+                                self(cleared, p + 1, remaining - 1, new_height, self);
+                        });
+                    });
+                });
+                return 0;
+            }
+        );
+    };
+    show(board, pieces, depth, 0, show);
+}
 
 int main(int argc, char* argv[]) {
     assert(argc >= 2);
@@ -198,19 +215,20 @@ int main(int argc, char* argv[]) {
     } else if (strcmp(argv[1], "bench") == 0) {
         bench();
         return 0;
-    } //  else if (strcmp(argv[1], "configs") == 0) {
-    // 	assert(argc >= 2);
-    // 	if (argc == 2) {
-    // 		configs();
-    // 	} else {
-    // 		perft_configs(argv[2]);
-    // 	}
-    // 	return 0;
-    // }
+    }
 
-    const auto [nodes, dt] = perft_with_time(BOARD{}, argv[1], strlen(argv[1]));
+    auto cfg = parse_config(argc, argv);
+    const char* pieces = find_piece(argc, argv);
 
-    std::cout << "Depth: " << strlen(argv[1])
+    if (has_flag(argc, argv, "--diagnose")) {
+        diagnose(BOARD{}, pieces, cfg, pieces);
+        std::cin.get();
+        return 0;
+    }
+
+    const auto [nodes, dt] = perft_with_time(BOARD{}, pieces, strlen(pieces), cfg);
+
+    std::cout << "Depth: " << strlen(pieces)
               << " Nodes: " << nodes
               << " Time: " << dt << "ms"
               << " NPS: " << (nodes * 1000) / static_cast<uint64_t>(dt + 1) << std::endl;
