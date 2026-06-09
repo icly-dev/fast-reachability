@@ -42,10 +42,12 @@ namespace reachability {
         static constexpr int remaining_in_last = num_of_under * used_bits_per_under - H * W;
         static constexpr under_t last_mask = mask >> remaining_in_last;
 
-        static constexpr int total_compressed_bits = num_of_under * lines_per_under;
-        using compressed_column_t = std::conditional_t<total_compressed_bits <= 8, uint8_t,
-                                    std::conditional_t<total_compressed_bits <= 16, uint16_t,
-                                    std::conditional_t<total_compressed_bits <= 32, uint32_t, uint64_t>>>;
+        using column_t = std::conditional_t<H <= 8, uint8_t,
+            std::conditional_t<H <= 16, uint16_t,
+                std::conditional_t<H <= 32, uint32_t, uint64_t>>>;
+        using row_t = std::conditional_t<W <= 8, uint8_t,
+            std::conditional_t<W <= 16, uint16_t,
+                std::conditional_t<W <= 32, uint32_t, uint64_t>>>;
 
         constexpr board_t() = default;
 
@@ -483,16 +485,42 @@ namespace reachability {
             return reinterpret_cast<const under_t*>(&data);
         }
 
-        template <int x>
-        constexpr compressed_column_t compress_column_array() const {
-            auto col_mask = one_bit<x>();
-            compressed_column_t out = 0;
-            for (std::size_t i = 0; i < std::size_t(num_of_under); ++i) {
-                out |= static_cast<compressed_column_t>(
-                    cxx26bp::bit_compress<under_t>(data[i], col_mask[i])
-                ) << (i * lines_per_under);
-            }
-            return out;
+        std::array<column_t, width> to_column_bitboard() {
+            std::array<column_t, width> columns = {};
+            reachability::static_for<width>([&] [[gnu::always_inline]] (auto x) {
+                auto col_mask = one_bit<x>();
+                for (std::size_t i = 0; i < std::size_t(num_of_under); ++i) {
+                    columns[x] |= static_cast<column_t>( cxx26bp::bit_compress<under_t>(data[i], col_mask[i])) << (i * lines_per_under);
+                }
+            });
+            return columns;
+        }
+
+        // clean: removes garbage bits beyond board width
+        template <bool clean = false>
+        std::array<row_t, height> to_row_bitboard() {
+            std::array<row_t, height> rows = {};
+            constexpr row_t row_mask = (row_t(1) << width) - 1;
+            reachability::static_for<H>([&](auto y) {
+                int bit_pos = int(y) * W;
+                int ui = bit_pos / under_bits;
+                int off = bit_pos % under_bits;
+                unsigned int r;
+                if (off + W > under_bits) {
+                    int lo = under_bits - off;
+                    r = ((data[ui] >> off) | (data[ui + 1] << lo));
+                    if constexpr (clean) {
+                        r &= row_mask;
+                    }
+                } else {
+                    r = (data[ui] >> off);
+                    if constexpr (clean) {
+                        r &= row_mask;
+                    }
+                }
+                rows[y] = r;
+            });
+            return rows;
         }
 
     private:
