@@ -551,6 +551,7 @@ namespace reachability {
             }};
         }
 
+    public:
         static constexpr board_t full_lines_of(int n) {
             size_t full_unders = n / lines_per_under, remaining_filled_line = n % lines_per_under;
             return to_board(data_t{[=](auto i) -> under_t {
@@ -563,6 +564,7 @@ namespace reachability {
             }});
         }
 
+    private:
         template <int removed, bool from_right>
         static constexpr data_t my_split(data_t data) {
             return data_t([=] [[gnu::always_inline]] (auto i) {
