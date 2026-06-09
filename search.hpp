@@ -216,7 +216,7 @@ namespace reachability::search {
                 constexpr auto index = index_c<block.mino_index[i][0_szc]>;
                 need_visit[i] = false;
                 while (true) {
-                    board_t result = cache[i];
+                    board_t result;
                     if (cfg.allow_softdrop) {
                         constexpr auto moves = std::array{coord{-1, 0}, coord{1, 0}, coord{0, -1}};
                         static_for<moves.size()>([&](auto j) {
@@ -232,7 +232,7 @@ namespace reachability::search {
                     if (cache[i].contains(result)) [[unlikely]] {
                         break;
                     }
-                    cache[i] = result;
+                    cache[i] |= result;
                 }
                 static_for<std::tuple_size_v<decltype(block.kicks)>>([&] [[gnu::always_inline]] (auto j) {
                     constexpr auto this_kick = block.kicks[j];
@@ -247,7 +247,7 @@ namespace reachability::search {
                     } else {
                         constexpr auto target = index_c<diff[1_szc]>;
                         static_assert(target != i);
-                        board_t to = cache[target];
+                        board_t to;
                         constexpr auto index2 = index_c<block.mino_index[target][0_szc]>;
                         board_t temp = cache[i];
                         static_for<std::tuple_size_v<decltype(kick_table)>>([&] [[gnu::always_inline]] (auto k) {
@@ -260,7 +260,7 @@ namespace reachability::search {
                             if constexpr (target < i)
                                 updated = true;
                         }
-                        cache[target] = to;
+                        cache[target] |= to;
                     }
                 });
             });
@@ -287,7 +287,7 @@ namespace reachability::search {
                         constexpr auto index = index_c<block.mino_index[i][0_szc]>;
                         need_visit[i] = false;
                         while (true) {
-                            board_t result = cache[i];
+                            board_t result;
                             if (cfg.allow_softdrop) {
                                 constexpr auto moves = std::array{coord{-1, 0}, coord{1, 0}, coord{0, -1}};
                                 static_for<moves.size()>([&](auto j) {
@@ -303,7 +303,7 @@ namespace reachability::search {
                             result = drop_to_bottom<block.minos[index]>(result, usable[index]);
                             if (cache[i].contains(result)) [[unlikely]]
                                 break;
-                            cache[i] = result;
+                            cache[i] |= result;
                         }
                         static_for<std::tuple_size_v<decltype(block.kicks)>>([&] [[gnu::always_inline]] (auto j) {
                             constexpr auto this_kick = block.kicks[j];
@@ -316,7 +316,7 @@ namespace reachability::search {
                             else {
                                 constexpr auto target = index_c<diff[1_szc]>;
                                 static_assert(target != i);
-                                board_t to = cache[target];
+                                board_t to;
                                 constexpr auto index2 = index_c<block.mino_index[target][0_szc]>;
                                 board_t temp = cache[i];
                                 static_for<std::tuple_size_v<decltype(kick_table)>>([&] [[gnu::always_inline]] (auto k) {
@@ -330,7 +330,7 @@ namespace reachability::search {
                                     if constexpr (target < i)
                                         updated = true;
                                 }
-                                cache[target] = to;
+                                cache[target] |= to;
                             }
                         });
                     });
