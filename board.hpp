@@ -690,10 +690,11 @@ namespace reachability {
 #endif
     };
 
-    template<class T>
+    template <class T>
     struct is_board_impl : std::false_type {};
-    template<unsigned W, unsigned H, typename under_t>
+
+    template <unsigned W, unsigned H, typename under_t>
     struct is_board_impl<board_t<W, H, under_t>> : std::true_type {};
-    template<class T>
+    template <class T>
     concept board_type = is_board_impl<T>::value;
 } // namespace reachability

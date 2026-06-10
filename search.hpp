@@ -111,7 +111,8 @@ namespace reachability::search {
         return *std::min_element(ys.begin(), ys.end());
     }();
 
-    template <auto b> requires block_spec<decltype(b)>
+    template <auto b>
+        requires block_spec<decltype(b)>
     constexpr int upmost_position = [] {
         std::array<int, b.orientations> ys{};
         static_for<b.orientations>([&](auto i) {
@@ -123,7 +124,8 @@ namespace reachability::search {
         return *std::max_element(ys.begin(), ys.end());
     }();
 
-    template <auto b> requires block_spec<decltype(b)>
+    template <auto b>
+        requires block_spec<decltype(b)>
     constexpr int leftmost_position = [] {
         std::array<int, b.orientations> xs{};
         static_for<b.orientations>([&](auto i) {
@@ -135,7 +137,8 @@ namespace reachability::search {
         return *std::min_element(xs.begin(), xs.end());
     }();
 
-    template <auto b> requires block_spec<decltype(b)>
+    template <auto b>
+        requires block_spec<decltype(b)>
     constexpr int rightmost_position = [] {
         std::array<int, b.orientations> xs{};
         static_for<b.orientations>([&](auto i) {
@@ -147,7 +150,8 @@ namespace reachability::search {
         return *std::max_element(xs.begin(), xs.end());
     }();
 
-    template <auto b> requires block_spec<decltype(b)>
+    template <auto b>
+        requires block_spec<decltype(b)>
     constexpr int max_width = [] {
         int w = 0;
         static_for<b.orientations>([&](auto i) {
@@ -161,7 +165,8 @@ namespace reachability::search {
         return w;
     }();
 
-    template <auto b> requires block_spec<decltype(b)>
+    template <auto b>
+        requires block_spec<decltype(b)>
     constexpr int max_height = [] {
         int h = 0;
         static_for<b.orientations>([&](auto i) {
@@ -544,10 +549,11 @@ namespace reachability::search {
         }
     };
 
-    template<class T>
+    template <class T>
     struct is_move_checker_impl : std::false_type {};
-    template<auto B, class Board>
+
+    template <auto B, class Board>
     struct is_move_checker_impl<move_checker<B, Board>> : std::true_type {};
-    template<class T>
+    template <class T>
     concept move_checker_type = is_move_checker_impl<T>::value;
 } // namespace reachability::search

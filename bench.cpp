@@ -115,17 +115,24 @@ reachability::search::search_config parse_config(int argc, char* argv[]) {
         .allow_180 = false,
         .allow_softdrop = false,
         .allow_sonicdrop = false,
-        .allow_20g = false
-    };
+        .allow_20g = false};
     for (int i = 1; i < argc; i++) {
         if (strncmp(argv[i], "--config=", 9) == 0) {
             const char* s = argv[i] + 9;
             while (*s) {
                 switch (*s) {
-                    case 'x': cfg.allow_180 = true; break;
-                    case 'd': cfg.allow_softdrop = true; break;
-                    case 'D': cfg.allow_sonicdrop = true; break;
-                    case 'g': cfg.allow_20g = true; break;
+                    case 'x':
+                        cfg.allow_180 = true;
+                        break;
+                    case 'd':
+                        cfg.allow_softdrop = true;
+                        break;
+                    case 'D':
+                        cfg.allow_sonicdrop = true;
+                        break;
+                    case 'g':
+                        cfg.allow_20g = true;
+                        break;
                 }
                 s++;
             }
@@ -136,8 +143,7 @@ reachability::search::search_config parse_config(int argc, char* argv[]) {
 
 const char* find_piece(int argc, char* argv[]) {
     for (int i = 1; i < argc; i++) {
-        if (strncmp(argv[i], "--config=", 9) != 0 && strncmp(argv[i], "--", 2) != 0
-            && strcmp(argv[i], "test") != 0 && strcmp(argv[i], "bench") != 0) {
+        if (strncmp(argv[i], "--config=", 9) != 0 && strncmp(argv[i], "--", 2) != 0 && strcmp(argv[i], "test") != 0 && strcmp(argv[i], "bench") != 0) {
             return argv[i];
         }
     }
@@ -163,7 +169,8 @@ void diagnose(BOARD board, const char* pieces, reachability::search::search_conf
     int move_count = 0;
 
     auto show = [&](BOARD b, const char* p, unsigned remaining, unsigned height, auto& self) -> void {
-        if (remaining == 0) return;
+        if (remaining == 0)
+            return;
         reachability::call_with_block<reachability::rules::SRS>(
             reachability::rules::Tetromino::from_name(*p),
             [&]<reachability::block B> -> int {
@@ -192,7 +199,8 @@ void diagnose(BOARD board, const char* pieces, reachability::search::search_conf
                             std::cout << "move " << ++move_count << ": "
                                       << *p << " r" << shape_idx << " (" << x << "," << y << ")"
                                       << (cleared_count ? " clear " + std::to_string(cleared_count) : "")
-                                      << "\n" << to_string<16>(cleared) << std::flush;
+                                      << "\n"
+                                      << to_string<16>(cleared) << std::flush;
                             std::cin.get();
                             if (remaining > 1)
                                 self(cleared, p + 1, remaining - 1, new_height, self);
@@ -200,8 +208,7 @@ void diagnose(BOARD board, const char* pieces, reachability::search::search_conf
                     });
                 });
                 return 0;
-            }
-        );
+            });
     };
     show(board, pieces, depth, 0, show);
 }
