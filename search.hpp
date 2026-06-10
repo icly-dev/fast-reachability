@@ -98,7 +98,8 @@ namespace reachability::search {
         return good_lines & usable;
     }
 
-    template <block b>
+    template <auto b>
+        requires block_spec<decltype(b)>
     constexpr int downmost_position = [] {
         std::array<int, b.orientations> ys{};
         static_for<b.orientations>([&](auto i) {
@@ -110,7 +111,7 @@ namespace reachability::search {
         return *std::min_element(ys.begin(), ys.end());
     }();
 
-    template <block b>
+    template <auto b> requires block_spec<decltype(b)>
     constexpr int upmost_position = [] {
         std::array<int, b.orientations> ys{};
         static_for<b.orientations>([&](auto i) {
@@ -122,7 +123,7 @@ namespace reachability::search {
         return *std::max_element(ys.begin(), ys.end());
     }();
 
-    template <block b>
+    template <auto b> requires block_spec<decltype(b)>
     constexpr int leftmost_position = [] {
         std::array<int, b.orientations> xs{};
         static_for<b.orientations>([&](auto i) {
@@ -134,7 +135,7 @@ namespace reachability::search {
         return *std::min_element(xs.begin(), xs.end());
     }();
 
-    template <block b>
+    template <auto b> requires block_spec<decltype(b)>
     constexpr int rightmost_position = [] {
         std::array<int, b.orientations> xs{};
         static_for<b.orientations>([&](auto i) {
@@ -146,7 +147,7 @@ namespace reachability::search {
         return *std::max_element(xs.begin(), xs.end());
     }();
 
-    template <block b>
+    template <auto b> requires block_spec<decltype(b)>
     constexpr int max_width = [] {
         int w = 0;
         static_for<b.orientations>([&](auto i) {
@@ -160,7 +161,7 @@ namespace reachability::search {
         return w;
     }();
 
-    template <block b>
+    template <auto b> requires block_spec<decltype(b)>
     constexpr int max_height = [] {
         int h = 0;
         static_for<b.orientations>([&](auto i) {
@@ -174,7 +175,8 @@ namespace reachability::search {
         return h;
     }();
 
-    template <block block, bool check_consecutive, typename board_t>
+    template <auto block, bool check_consecutive, typename board_t>
+        requires block_spec<decltype(block)>
     [[gnu::always_inline]] constexpr std::array<board_t, block.shapes> binary_bfs_impl(
         board_t (&usable)[block.shapes],
         std::array<board_t, block.orientations>& cache,
@@ -350,7 +352,8 @@ namespace reachability::search {
         return ret;
     }
 
-    template <block block, bool check_consecutive = true, typename board_t>
+    template <auto block, bool check_consecutive = true, typename board_t>
+        requires block_spec<decltype(block)>
     constexpr std::array<board_t, block.shapes> binary_bfs(board_t data, const search_config& cfg, coord start, unsigned init_rot, std::array<board_t, block.orientations>* out_cache = nullptr) {
         constexpr int orientations = block.orientations;
         constexpr int shapes = block.shapes;
@@ -443,7 +446,8 @@ namespace reachability::search {
         });
     }
 
-    template <block B, typename board_t>
+    template <auto B, typename board_t>
+        requires block_spec<decltype(B)>
     struct move_checker {
         static constexpr int orientations = B.orientations;
         static constexpr int shapes = B.shapes;
@@ -539,4 +543,11 @@ namespace reachability::search {
             return {rot_from, x, y};
         }
     };
+
+    template<class T>
+    struct is_move_checker_impl : std::false_type {};
+    template<auto B, class Board>
+    struct is_move_checker_impl<move_checker<B, Board>> : std::true_type {};
+    template<class T>
+    concept move_checker_type = is_move_checker_impl<T>::value;
 } // namespace reachability::search

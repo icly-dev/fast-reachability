@@ -73,6 +73,13 @@ namespace reachability {
         Kicks kicks;
     };
 
+    template<class T>
+    struct is_block_impl : std::false_type {};
+    template<typename Shapes, typename Offsets, typename Kicks, auto Id_>
+    struct is_block_impl<block<Shapes, Offsets, Kicks, Id_>> : std::true_type {};
+    template<class T>
+    concept block_spec = is_block_impl<T>::value;
+
     // ========== combined variable template ==========
 
     template <auto P, auto K>
@@ -206,4 +213,11 @@ namespace reachability::rules {
             return Pieces::from_name(c);
         }
     };
+
+    template<class T>
+    struct is_rule_set_impl : std::false_type {};
+    template<class Pieces, class Kicks>
+    struct is_rule_set_impl<rule_set<Pieces, Kicks>> : std::true_type {};
+    template<class T>
+    concept rule_set_type = is_rule_set_impl<T>::value;
 } // namespace reachability::rules
