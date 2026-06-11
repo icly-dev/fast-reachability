@@ -530,7 +530,15 @@ namespace reachability {
             });
         }
 
+        template <bool clean = false>
         void from_row_bitboard(std::array<row_t, height> rows) {
+            data = {};
+            if constexpr(clean) {
+                constexpr row_t row_mask = (row_t(1) << width) - 1;
+                for (auto& r : rows) {
+                    r &= row_mask;
+                }
+            }
             static_for<H>([&](auto y) {
                 int bit_pos = int(y) * W;
                 int ui = bit_pos / used_bits_per_under;
