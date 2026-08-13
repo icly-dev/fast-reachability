@@ -36,9 +36,32 @@ namespace reachability::search {
     }
 
     template <typename board_t>
-    constexpr board_t consecutive_lines(board_t usable) {
-        const auto indicator01 = usable.get_heads();
-        return indicator01.has_single_bit();
+    constexpr bool consecutive_at(int height, board_t usable) {
+        if (height >= int(board_t::height)) {
+            return 1;
+        }
+        using under_t = std::remove_const_t<std::remove_pointer_t<decltype(usable.raw())>>;
+        constexpr int L = board_t::lines_per_under;
+        constexpr int W = board_t::width;
+        const int block = height / L;
+        const int row_in_block = height % L;
+        const under_t word = usable.raw()[block];
+        constexpr under_t col_W1 = [] {
+            under_t m = 0;
+            for (int j = 0; j < L; ++j) m |= under_t(1) << (W - 1 + W * j);
+            return m;
+        }();
+        constexpr under_t col_0 = [] {
+            under_t m = 0;
+            for (int j = 0; j < L; ++j) m |= under_t(1) << (W * j);
+            return m;
+        }();
+        under_t s1 = word | col_W1;
+        s1 &= s1 - col_0;
+        under_t s2 = s1 | col_W1;
+        s2 &= s2 - col_0;
+        const under_t res = (s1 ^ word) & ~s2;
+        return (res >> (W - 1 + W * row_in_block)) & 1;
     }
 
     template <Wrap<mino_p> auto mino_from, Wrap<mino_p> auto mino_to, coord d, typename board_t>
@@ -88,8 +111,7 @@ namespace reachability::search {
             if (removed_lines > 1) {
                 good_lines &= board_t::full_lines_of(start[1_szc] + 1);
             }
-            const auto consecutive = consecutive_lines(usable);
-            if (!consecutive.get(board_t::width - 1, start[1_szc])) {
+            if (!consecutive_at(start[1_szc], usable)) {
                 auto ret = board_t();
                 ret.set(start[0_szc], start[1_szc]);
                 return ret;
