@@ -350,10 +350,17 @@ namespace reachability {
 
             std::array<int, num_of_under> prefix_sum = {};
             std::partial_sum(lines.begin(), lines.end() - 1, prefix_sum.begin() + 1);
+            [[assume(all_lines < lines_per_under +
+                (W * lines_per_under == std::numeric_limits<under_t>::digits ? 0 : 1))]];
+
             data_t moved_down{[&] [[gnu::always_inline]] (auto i) -> under_t {
                 if constexpr (i == num_of_under - 1)
                     return 0;
-                else
+                else if constexpr (W * lines_per_under == std::numeric_limits<under_t>::digits) {
+                    return prefix_sum[i + 1] == 0
+                        ? under_t(0)
+                        : cleared[i + 1] << (W * (lines_per_under - prefix_sum[i + 1]));
+                } else
                     return cleared[i + 1] << (W * (lines_per_under - prefix_sum[i + 1]));
             }};
             data_t remained{[&] [[gnu::always_inline]] (auto i) -> under_t {
