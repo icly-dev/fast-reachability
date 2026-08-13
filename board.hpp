@@ -485,8 +485,99 @@ namespace reachability {
             return reinterpret_cast<const under_t*>(&data);
         }
 
-        std::array<column_t, width> to_column_bitboard() const {
+        // Fast path requires 64-bit words and height <= 48 (rows fit in 64-bit
+        // column bitboards; the SIMD variant is built for 48 rows). The multiply
+        // gather/expand is correct only while its copies never overlap:
+        //   gather (to):   W*k + (64-L) - (W-1)*j  distinct -> W >= 8
+        //   expand (from): k + (W-1)*j + x         distinct -> W >= 9
+        // Below that (e.g. W=4), L = 64/W > W-1 rows per word: copies collide
+        // and the carries corrupt column-x bits, so those widths keep the
+        // generic pext/pdep path.
+        static constexpr bool fast_gather_path =
+            std::is_same_v<under_t, std::uint64_t> && width >= 8 && height <= 48;
+        static constexpr bool fast_expand_path =
+            std::is_same_v<under_t, std::uint64_t> && width >= 9 && height <= 48;
+
+        static constexpr under_t column_bits_mask() {
+            under_t m = 0;
+            for (int k = 0; k < lines_per_under; ++k) m |= under_t(1) << (width * k);
+            return m;
+        }
+        static constexpr under_t column_gather_magic() {
+            under_t m = 0;
+            for (int j = 0; j < lines_per_under; ++j)
+                m |= under_t(1) << (under_bits - lines_per_under - (width - 1) * j);
+            return m;
+        }
+        static constexpr under_t column_expand_magic() {
+            under_t m = 0;
+            for (int j = 0; j < lines_per_under; ++j) m |= under_t(1) << ((width - 1) * j);
+            return m;
+        }
+        static_assert(width != 10 || !fast_gather_path || column_bits_mask() ==
+            ((1ull << 0) | (1ull << 10) | (1ull << 20) | (1ull << 30) | (1ull << 40) | (1ull << 50)));
+        static_assert(width != 10 || !fast_gather_path || column_gather_magic() ==
+            ((1ull << 13) | (1ull << 22) | (1ull << 31) | (1ull << 40) | (1ull << 49) | (1ull << 58)));
+        static_assert(width != 10 || !fast_expand_path || column_expand_magic() ==
+            ((1ull << 0) | (1ull << 9) | (1ull << 18) | (1ull << 27) | (1ull << 36) | (1ull << 45)));
+
+        [[gnu::always_inline]] std::array<column_t, width> to_column_bitboard() const {
             std::array<column_t, width> columns = {};
+            if constexpr (fast_gather_path) {
+#if defined(__clang__)
+                if constexpr (width == 10) {
+                    using u32x4 = unsigned int __attribute__((ext_vector_type(4)));
+                    using u8x16 = unsigned char __attribute__((ext_vector_type(16)));
+                    using u8x32 = unsigned char __attribute__((ext_vector_type(32)));
+                    std::uint16_t rows48[48] = {};
+                    auto rows = this->template to_row_bitboard<true>();
+                    for (int y = 0; y < height; ++y) rows48[y] = rows[y];
+                    constexpr unsigned int G = (1u << 3) | (1u << 10) | (1u << 17) | (1u << 24);
+                    const u32x4 Gv = {G, G, G, G};
+                    const u32x4 ONES = {0x01010101u, 0x01010101u, 0x01010101u, 0x01010101u};
+                    u32x4 acc[10] = {};
+                    u32x4 accHi[10] = {};
+                    for (int p = 0; p < 3; ++p) {
+                        u8x32 r32;
+                        __builtin_memcpy(&r32, &rows48[16 * p], 32);
+                        u8x16 evens = __builtin_shufflevector(r32, r32, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30);
+                        u8x16 odds = __builtin_shufflevector(r32, r32, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31);
+                        const u32x4 B = __builtin_bit_cast(u32x4, evens);
+                        const u32x4 HB = __builtin_bit_cast(u32x4, odds);
+                        u32x4* accp = p < 2 ? acc : accHi;
+                        const u32x4 SH = {16u * (p % 2), 16u * (p % 2) + 4, 16u * (p % 2) + 8, 16u * (p % 2) + 12};
+                        for (int x = 0; x < 8; ++x) {
+                            const u32x4 g = (((B >> x) & ONES) * Gv) >> 24;
+                            accp[x] += g << SH;
+                        }
+                        const u32x4 g8 = (((HB >> 0) & ONES) * Gv) >> 24;
+                        const u32x4 g9 = (((HB >> 1) & ONES) * Gv) >> 24;
+                        accp[8] += g8 << SH;
+                        accp[9] += g9 << SH;
+                    }
+                    for (int x = 0; x < width; ++x) {
+                        u32x4 a = acc[x];
+                        a |= __builtin_shufflevector(a, a, 1, 0, 3, 2);
+                        a |= __builtin_shufflevector(a, a, 2, 2, 0, 0);
+                        u32x4 h = accHi[x];
+                        h |= __builtin_shufflevector(h, h, 1, 0, 3, 2);
+                        h |= __builtin_shufflevector(h, h, 2, 2, 0, 0);
+                        columns[x] = static_cast<column_t>((std::uint64_t)a[0] | ((std::uint64_t)h[0] << 32));
+                    }
+                    return columns;
+                }
+#endif
+
+                constexpr under_t mask = column_bits_mask();
+                constexpr under_t mg = column_gather_magic();
+                for (int x = 0; x < width; ++x) {
+                    for (int i = 0; i < num_of_under; ++i) {
+                        const under_t u = (data[i] >> x) & mask;
+                        columns[x] |= static_cast<column_t>(((u * mg) >> (under_bits - lines_per_under)) << (lines_per_under * i));
+                    }
+                }
+                return columns;
+            }
             reachability::static_for<width>([&] [[gnu::always_inline]] (auto x) {
                 auto col_mask = one_bit<x>();
                 for (std::size_t i = 0; i < std::size_t(num_of_under); ++i) {
@@ -498,7 +589,7 @@ namespace reachability {
 
         // clean: removes garbage bits beyond board width
         template <bool clean = false>
-        std::array<row_t, height> to_row_bitboard() const {
+        [[gnu::always_inline]] std::array<row_t, height> to_row_bitboard() const {
             std::array<row_t, height> rows = {};
             constexpr row_t row_mask = (row_t(1) << width) - 1;
             reachability::static_for<H>([&](auto y) {
@@ -520,18 +611,31 @@ namespace reachability {
             return rows;
         }
 
-        void from_column_bitboard(std::array<column_t, width> columns) {
-            static_for<width>([&] [[gnu::always_inline]] (auto x) {
-                auto col_mask = one_bit<x>();
-                for (std::size_t i = 0; i < std::size_t(num_of_under); ++i) {
-                    column_t col_bits = columns[x] >> (i * lines_per_under);
-                    assign(data, i, data[i] | cxx26bp::bit_expand<under_t>(static_cast<under_t>(col_bits), col_mask[i]));
+        [[gnu::always_inline]] void from_column_bitboard(std::array<column_t, width> columns) {
+            if constexpr (fast_expand_path) {
+                constexpr under_t mask = column_bits_mask();
+                constexpr under_t me = column_expand_magic();
+                for (int x = 0; x < width; ++x) {
+                    const under_t M = me << x;
+                    const under_t mx = mask << x;
+                    for (int i = 0; i < num_of_under; ++i) {
+                        const under_t u = under_t(columns[x] >> (lines_per_under * i)) & under_t((under_t(1) << lines_per_under) - 1);
+                        assign(data, i, data[i] | ((u * M) & mx));
+                    }
                 }
-            });
+            } else {
+                static_for<width>([&] [[gnu::always_inline]] (auto x) {
+                    auto col_mask = one_bit<x>();
+                    for (std::size_t i = 0; i < std::size_t(num_of_under); ++i) {
+                        column_t col_bits = columns[x] >> (i * lines_per_under);
+                        assign(data, i, data[i] | cxx26bp::bit_expand<under_t>(static_cast<under_t>(col_bits), col_mask[i]));
+                    }
+                });
+            }
         }
 
         template <bool clean = false>
-        void from_row_bitboard(std::array<row_t, height> rows) {
+        [[gnu::always_inline]] void from_row_bitboard(std::array<row_t, height> rows) {
             data = {};
             if constexpr(clean) {
                 constexpr row_t row_mask = (row_t(1) << width) - 1;
