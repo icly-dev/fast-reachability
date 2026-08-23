@@ -1,5 +1,5 @@
 #pragma once
-#include "piece_tetromino.hpp"
+#include "block.hpp"
 
 // SRS (Super Rotation System) kick tables and combined rule system
 
@@ -45,6 +45,4 @@ namespace reachability::rules {
             kick_table{I_kick_data},      // I
         };
     };
-
-    using SRS = rule_set<Tetromino, SRS_Kicks>;
 } // namespace reachability::rules

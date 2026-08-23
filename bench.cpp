@@ -109,8 +109,8 @@ void diagnose(BOARD board, const char* pieces, reachability::search::search_conf
     auto show = [&](BOARD b, const char* p, unsigned remaining, unsigned height, auto& self) -> void {
         if (remaining == 0)
             return;
-        reachability::call_with_block<reachability::rules::SRS>(
-            reachability::rules::Tetromino::from_name(*p),
+        reachability::call_with_block<SRS>(
+            Tetromino::from_name(*p),
             [&]<reachability::block B> -> int {
                 constexpr int downmost = reachability::search::downmost_position<B>;
                 b.call_with_height<reachability::tuple{6, 12, 24, 48}>(height + 3, [&](auto nb) {

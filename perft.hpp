@@ -1,6 +1,7 @@
 #pragma once
 
 #include "kick_srs.hpp"
+#include "piece_tetromino.hpp"
 #include "search.hpp"
 #include "utils.hpp"
 #include "board.hpp"
@@ -12,11 +13,13 @@
 #include <utility>
 
 using reachability::operator""_szc;
+using namespace reachability::rules;
 
 using BOARD = reachability::board_t<10, 48>;
+using SRS = rule_set<Tetromino, SRS_Kicks>;
 
 inline uint64_t perft(BOARD b, const char* block, unsigned depth, unsigned height = 0, reachability::search::search_config cfg = {}) {
-    return reachability::call_with_block<reachability::rules::SRS>(reachability::rules::Tetromino::from_name(*block), [&]<reachability::block B> [[gnu::always_inline]] () {
+    return reachability::call_with_block<SRS>(Tetromino::from_name(*block), [&]<reachability::block B> [[gnu::always_inline]] () {
         uint64_t n = 0;
         constexpr int downmost = reachability::search::downmost_position<B>;
         b.call_with_height<reachability::tuple{6, 12, 24, 48}>(height + 3, [&] [[gnu::always_inline]] (auto nb) {

@@ -453,6 +453,17 @@ namespace reachability {
             });
         }
 
+        [[gnu::always_inline]] constexpr int highest_y() const {
+            for (int i = num_of_under - 1; i >= 0; --i) {
+                const under_t w = data[i] & (i == last ? last_mask : mask);
+                if (w) {
+                    const int pos = under_bits - 1 - std::countl_zero(w);
+                    return i * lines_per_under + pos / W;
+                }
+            }
+            return -1;
+        }
+
         template <int H2>
             requires(H2 <= H)
         constexpr board_t<W, H2, under_t> cut_to_height() const {
