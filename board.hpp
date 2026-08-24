@@ -458,10 +458,19 @@ namespace reachability {
                 const under_t w = data[i] & (i == last ? last_mask : mask);
                 if (w) {
                     const int pos = under_bits - 1 - std::countl_zero(w);
-                    return i * lines_per_under + pos / W;
+                    return i * lines_per_under + pos / W + 1;
                 }
             }
-            return -1;
+            return 0;
+        }
+        [[gnu::always_inline]] constexpr std::array<size_t, W> column_tops() const {
+            std::array<size_t, W> res{};
+            auto cols = to_column_bitboard();
+            for (size_t x = 0; x < W; ++x) {
+                column_t c = cols[x];
+                res[x] = c == 0 ? 0 : static_cast<size_t>(std::bit_width(c));
+            }
+            return res;
         }
 
         template <int H2>
