@@ -381,13 +381,18 @@ namespace reachability::search {
 
     template <auto block, bool check_consecutive = true, typename board_t>
         requires block_spec<decltype(block)>
-    constexpr std::array<board_t, block.shapes> binary_bfs(board_t data, const search_config& cfg, coord start, unsigned init_rot, std::array<board_t, block.orientations>* out_cache = nullptr) {
+    constexpr std::array<board_t, block.shapes> binary_bfs(board_t data, const search_config& cfg, coord start, unsigned init_rot,
+        std::array<board_t, block.orientations>* out_cache = nullptr,
+        std::array<board_t, block.shapes>* out_usable = nullptr) {
         constexpr int orientations = block.orientations;
         constexpr int shapes = block.shapes;
         board_t usable[shapes];
         static_for<shapes>([&] [[gnu::always_inline]] (auto i) {
             usable[i] = usable_positions<block.minos[i]>(data);
         });
+        if (out_usable) {
+            static_for<shapes>([&](auto i) { (*out_usable)[i] = usable[i]; });
+        }
         // Resolve start position for the given init_rot at runtime
         unsigned init_shape = 0;
         coord offset{0, 0};
@@ -494,6 +499,9 @@ namespace reachability::search {
                 usable[i] = usable_positions<B.minos[i]>(board);
             });
         }
+
+        constexpr move_checker(const std::array<board_t, orientations>& c,
+            const std::array<board_t, shapes>& u) : cache(c), usable(u) {}
 
         template <bool check_consecutive = true>
         constexpr move_checker(const board_t& board, const search_config& cfg, coord start, unsigned init_rot)
