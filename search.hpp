@@ -5,6 +5,8 @@
 #include <array>
 #include <span>
 #include <algorithm>
+#include <bit>
+#include <limits>
 
 namespace reachability::search {
     // Search configuration — passed as runtime parameter to binary_bfs
@@ -476,6 +478,132 @@ namespace reachability::search {
             auto ret = binary_bfs<B, check_consecutive>(data, cfg, start, init_rot);
             return static_vector<board_t, 4>{std::span{ret}};
         });
+    }
+
+    template <auto block, typename board_t>
+        requires block_spec<decltype(block)>
+    constexpr std::array<board_t, block.shapes> immobile_positions(board_t data) {
+        std::array<board_t, block.shapes> ret;
+        static_for<block.shapes>([&](auto i) {
+            const board_t usable = usable_positions<block.minos[i]>(data);
+            ret[i] = usable & ~usable.template move<coord{0, 1}>() & ~usable.template move<coord{0, -1}>() & ~usable.template move<coord{1, 0}>() & ~usable.template move<coord{-1, 0}>();
+        });
+        return ret;
+    }
+
+    template <auto block, bool check_consecutive = true, typename board_t>
+        requires block_spec<decltype(block)>
+    constexpr std::array<board_t, block.shapes> reachable_immobile_positions(board_t data, const search_config& cfg, coord start, unsigned init_rot) {
+        const auto scanned = immobile_positions<block>(data);
+        bool any = false;
+        static_for<block.shapes>([&](auto i) {
+            any = any || scanned[i].any();
+        });
+        if (!any)
+            return {};
+        auto ret = binary_bfs<block, check_consecutive>(data, cfg, start, init_rot);
+        static_for<block.shapes>([&](auto i) {
+            ret[i] &= scanned[i];
+        });
+        return ret;
+    }
+
+    template <auto block, typename board_t>
+        requires block_spec<decltype(block)>
+    constexpr std::array<board_t, block.shapes> clearing_positions_impl(board_t data, const std::array<board_t, block.shapes>& candidates) {
+        constexpr int W = board_t::width;
+        constexpr int H = board_t::height;
+        using row_t = typename board_t::row_t;
+        constexpr row_t full_row = row_t(std::numeric_limits<row_t>::max() >> (std::numeric_limits<row_t>::digits - W));
+
+        constexpr int max_span = [] {
+            int m = 0;
+            static_for<block.shapes>([&](auto i) {
+                constexpr auto range = mino_range<block.minos[i]>();
+                m = std::max(m, range[3] - range[1] + 1);
+            });
+            return m;
+        }();
+
+        struct shape_rows {
+            int min_x, max_x, min_y, span;
+            std::array<std::uint64_t, max_span> pat{};
+        };
+        constexpr auto table = [] {
+            std::array<shape_rows, block.shapes> t{};
+            static_for<block.shapes>([&](auto i) {
+                constexpr auto mino = block.minos[i];
+                constexpr auto range = mino_range<mino>();
+                t[i].min_x = range[0];
+                t[i].max_x = range[2];
+                t[i].min_y = range[1];
+                t[i].span = range[3] - range[1] + 1;
+                static_for<std::tuple_size_v<decltype(mino)>>([&](auto c) {
+                    constexpr coord cell = mino[c];
+                    t[i].pat[cell[1_szc] - range[1]] |= std::uint64_t(1) << (cell[0_szc] - range[0]);
+                });
+            });
+            return t;
+        }();
+
+        constexpr int max_cells = [] {
+            int m = 0;
+            static_for<block.shapes>([&](auto i) {
+                constexpr auto range = mino_range<block.minos[i]>();
+                m = std::max(m, range[2] - range[0] + 1);
+            });
+            return m;
+        }();
+
+        const auto rows = data.template to_row_bitboard<true>();
+        for (int r = 0; r < H; ++r) {
+            if (rows[r] == full_row)
+                return candidates;
+        }
+        std::array<board_t, block.shapes> ret{};
+        for (int r = 0; r < H; ++r) {
+            const std::uint64_t miss = full_row & ~rows[r];
+            if (std::popcount(miss) > max_cells)
+                continue;
+            static_for<block.shapes>([&](auto i) {
+                const shape_rows& s = table[i];
+                const int x_lo = std::max(0, -s.min_x);
+                const int x_hi = W - 1 - s.max_x;
+                for (int k = 0; k < s.span; ++k) {
+                    const std::uint64_t pat = s.pat[k];
+                    if (!pat)
+                        continue;
+                    const int y = r - (s.min_y + k);
+                    if (y < 0 || y >= H)
+                        continue;
+                    for (int x = x_lo; x <= x_hi; ++x) {
+                        if ((miss & ~(pat << (x + s.min_x))) == 0 && candidates[i].get(x, y))
+                            ret[i].set(x, y);
+                    }
+                }
+            });
+        }
+        return ret;
+    }
+
+    template <auto block, typename board_t>
+        requires block_spec<decltype(block)>
+    constexpr std::array<board_t, block.shapes> clearing_positions(board_t data) {
+        std::array<board_t, block.shapes> candidates;
+        static_for<block.shapes>([&](auto i) {
+            candidates[i] = usable_positions<block.minos[i]>(data);
+        });
+        return clearing_positions_impl<block>(data, candidates);
+    }
+
+    template <auto block, typename board_t>
+        requires block_spec<decltype(block)>
+    constexpr std::array<board_t, block.shapes> landable_clearing_positions(board_t data) {
+        std::array<board_t, block.shapes> candidates;
+        static_for<block.shapes>([&](auto i) {
+            candidates[i] = landable_positions(usable_positions<block.minos[i]>(data));
+        });
+        return clearing_positions_impl<block>(data, candidates);
     }
 
     template <auto B, typename board_t>
