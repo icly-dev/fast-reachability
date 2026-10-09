@@ -169,6 +169,25 @@ namespace std {
 } // namespace std
 
 namespace reachability {
+    template <std::size_t I, typename... Ts>
+    constexpr auto tuple_replace(const tuple<Ts...>& t, auto value) {
+        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            return tuple{[&]<std::size_t J>() {
+                if constexpr (J == I)
+                    return value;
+                else
+                    return std::tuple_element_t<J, tuple<Ts...>>(std::get<J>(t));
+            }.template operator()<Is>()...};
+        }(std::make_index_sequence<sizeof...(Ts)>{});
+    }
+
+    template <std::size_t N, typename T>
+    constexpr auto tuple_repeat(const T& value) {
+        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            return tuple{((void)Is, T(value))...};
+        }(std::make_index_sequence<N>{});
+    }
+
     // concept written as tempate arg -> template arg -> bool
     // because we cannot pass concepts as template parameters yet (p2841)
     // __cpp_template_parameters >= 202502L

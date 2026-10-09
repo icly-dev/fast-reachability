@@ -151,15 +151,6 @@ namespace reachability::rules {
     concept kick_set = requires {
         T::all;
     };
-
-    template <typename T>
-    concept rule_system = requires {
-        typename T::piece_type;
-        T::piece_list;
-        T::block_list;
-        { T::name_of(typename T::piece_type{}) } -> std::same_as<char>;
-        { T::from_name(char{}) } -> std::same_as<typename T::piece_type>;
-    };
 } // namespace reachability::rules
 
 // ========== Generic call_with_block ==========
@@ -179,6 +170,48 @@ namespace reachability {
         if (!matched) [[unlikely]]
             std::unreachable();
         return result;
+    }
+
+    template <auto B, typename Shape, typename F>
+        requires block_spec<decltype(B)>
+    [[gnu::always_inline]] constexpr void with_shape(Shape shape, F&& f) {
+        static_for<B.shapes>([&](auto i) {
+            if (i == shape) {
+                constexpr auto mino = B.minos[i];
+                f.template operator()<mino>(mino_range<mino>());
+            }
+        });
+    }
+
+    template <auto B, typename Rot, typename F>
+        requires block_spec<decltype(B)>
+    [[gnu::always_inline]] constexpr void with_orientation(Rot rot, F&& f) {
+        static_for<B.orientations>([&](auto i) {
+            if (i == rot) {
+                constexpr auto entry = B.mino_index[i];
+                constexpr auto mino = B.minos[index_c<std::get<0>(entry)>];
+                f.template operator()<mino>(std::get<0>(entry), std::get<1>(entry));
+            }
+        });
+    }
+
+    template <auto B>
+        requires block_spec<decltype(B)>
+    constexpr auto shape_of = [] {
+        std::array<int, B.orientations> table{};
+        static_for<B.orientations>([&](auto i) {
+            table[i] = std::get<0>(B.mino_index[i]);
+        });
+        return table;
+    }();
+
+    template <typename RS, typename F>
+    constexpr void for_each_block(F&& f) {
+        static_for<RS::count>([&](auto i) {
+            call_with_block<RS>(std::get<i>(RS::piece_list), [&]<block B>() {
+                return f.template operator()<B>(std::get<i>(RS::piece_list));
+            });
+        });
     }
 
 } // namespace reachability
@@ -222,4 +255,28 @@ namespace reachability::rules {
     struct is_rule_set_impl<rule_set<Pieces, Kicks>> : std::true_type {};
     template <class T>
     concept rule_set_type = is_rule_set_impl<T>::value;
+
+    template <typename Pieces, std::size_t I, auto Def>
+        requires piece_set<Pieces>
+    struct override_piece {
+        using piece_type = typename Pieces::piece_type;
+
+        static constexpr auto all = reachability::tuple_replace<I>(Pieces::all, Def);
+
+        static constexpr auto piece_list = Pieces::piece_list;
+
+        static constexpr char name_of(piece_type p) {
+            return Pieces::name_of(p);
+        }
+
+        static constexpr piece_type from_name(char c) {
+            return Pieces::from_name(c);
+        }
+    };
+
+    template <typename Kicks, std::size_t I, auto Table>
+        requires kick_set<Kicks>
+    struct override_kick {
+        static constexpr auto all = reachability::tuple_replace<I>(Kicks::all, Table);
+    };
 } // namespace reachability::rules

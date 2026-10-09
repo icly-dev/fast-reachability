@@ -483,13 +483,6 @@ namespace reachability::search {
     struct move_checker {
         static constexpr int orientations = B.orientations;
         static constexpr int shapes = B.shapes;
-        static constexpr std::array<int, orientations> shape_for_rot = [] {
-            std::array<int, orientations> arr{};
-            static_for<orientations>([&](auto i) {
-                arr[i] = std::get<0>(std::get<i>(B.mino_index));
-            });
-            return arr;
-        }();
         std::array<board_t, orientations> cache;
         std::array<board_t, shapes> usable;
 
@@ -504,51 +497,51 @@ namespace reachability::search {
             const std::array<board_t, shapes>& u) : cache(c), usable(u) {}
 
         template <bool check_consecutive = true>
-        constexpr move_checker(const board_t& board, const search_config& cfg, coord start, unsigned init_rot)
+        constexpr move_checker(const board_t& board, const search_config& cfg, coord start, unsigned init_orientation)
             : cache{} {
             static_for<shapes>([&](auto i) {
                 usable[i] = usable_positions<B.minos[i]>(board);
             });
-            binary_bfs<B, check_consecutive>(board, cfg, start, init_rot, &cache);
+            binary_bfs<B, check_consecutive>(board, cfg, start, init_orientation, &cache);
         }
 
-        constexpr bool is_valid(int rot, int x, int y) const {
-            return usable[shape_for_rot[rot]].get(x, y);
+        constexpr bool is_valid(int shape, int x, int y) const {
+            return usable[shape].get(x, y);
         }
 
-        constexpr bool can_move_left(int rot, int x, int y) const {
+        constexpr bool can_move_left(int shape, int x, int y) const {
             if (x <= 0)
                 return false;
-            return is_valid(rot, x - 1, y);
+            return is_valid(shape, x - 1, y);
         }
 
-        constexpr bool can_move_right(int rot, int x, int y) const {
+        constexpr bool can_move_right(int shape, int x, int y) const {
             if (x + 1 >= int(board_t::width))
                 return false;
-            return is_valid(rot, x + 1, y);
+            return is_valid(shape, x + 1, y);
         }
 
-        constexpr bool can_move_up(int rot, int x, int y) const {
+        constexpr bool can_move_up(int shape, int x, int y) const {
             if (y + 1 >= int(board_t::height))
                 return false;
-            return is_valid(rot, x, y + 1);
+            return is_valid(shape, x, y + 1);
         }
 
-        constexpr bool can_move_down(int rot, int x, int y) const {
+        constexpr bool can_move_down(int shape, int x, int y) const {
             if (y <= 0)
                 return false;
-            return is_valid(rot, x, y - 1);
+            return is_valid(shape, x, y - 1);
         }
 
         struct rotate_result {
-            int rot;
+            int orientation;
             int x;
             int y;
         };
 
-        constexpr rotate_result try_rotate(int rot_from, int rot_to, int x, int y) const {
-            if (rot_from == rot_to)
-                return {rot_from, x, y};
+        constexpr rotate_result try_rotate(int orientation_from, int orientation_to, int x, int y) const {
+            if (orientation_from == orientation_to)
+                return {orientation_from, x, y};
 
             int new_x = x, new_y = y;
             bool found = false;
@@ -556,7 +549,7 @@ namespace reachability::search {
             static_for<std::tuple_size_v<decltype(B.kicks)>>([&](auto i) {
                 constexpr auto entry = B.kicks[i];
                 constexpr auto diff = entry[0_szc];
-                if (diff[0_szc] != rot_from || diff[1_szc] != rot_to)
+                if (diff[0_szc] != orientation_from || diff[1_szc] != orientation_to)
                     return;
                 constexpr auto table = entry[1_szc];
                 static_for<std::tuple_size_v<std::remove_const_t<decltype(table)>>>([&](auto j) {
@@ -565,7 +558,7 @@ namespace reachability::search {
                     constexpr auto kick = table[j];
                     constexpr int dx = kick[0_szc], dy = kick[1_szc];
                     int nx = x + dx, ny = y + dy;
-                    if (nx >= 0 && nx < static_cast<int>(board_t::width) && ny >= 0 && is_valid(rot_to, nx, ny)) {
+                    if (nx >= 0 && nx < static_cast<int>(board_t::width) && ny >= 0 && is_valid(shape_of<B>[orientation_to], nx, ny)) {
                         new_x = nx;
                         new_y = ny;
                         found = true;
@@ -574,8 +567,8 @@ namespace reachability::search {
             });
 
             if (found)
-                return {rot_to, new_x, new_y};
-            return {rot_from, x, y};
+                return {orientation_to, new_x, new_y};
+            return {orientation_from, x, y};
         }
     };
 
