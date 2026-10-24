@@ -663,7 +663,7 @@ namespace reachability {
 
         template <bool clean = false>
         [[gnu::always_inline]] void from_row_bitboard(std::array<row_t, height> rows) {
-            data = {};
+            data = data_t{};
             if constexpr(clean) {
                 constexpr row_t row_mask = (row_t(1) << width) - 1;
                 for (auto& r : rows) {
