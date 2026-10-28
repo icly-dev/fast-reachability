@@ -9,6 +9,7 @@
 #include <type_traits>
 #include <cstdint>
 #include <bit>
+#include <cstring>
 #include "bit_permutations.hpp"
 #ifdef USE_STME
 #include "stme.hpp"
@@ -619,6 +620,33 @@ namespace reachability {
         [[gnu::always_inline]] std::array<row_t, height> to_row_bitboard() const {
             std::array<row_t, height> rows = {};
             constexpr row_t row_mask = (row_t(1) << width) - 1;
+            constexpr int field_bits = int(sizeof(row_t) * 8);
+            if constexpr (clean && field_bits >= W && used_bits_per_under % W == 0
+                && used_bits_per_under <= under_bits && field_bits * 4 <= under_bits) {
+                constexpr int rows_per_under = used_bits_per_under / W;
+                constexpr int groups = (rows_per_under + 3) / 4;
+                int y = 0;
+                reachability::static_for<num_of_under>([&](auto wi) {
+                    under_t const word = data[wi];
+                    reachability::static_for<groups>([&](auto gi) {
+                        constexpr int first = int(decltype(gi)::value) * 4;
+                        constexpr int count = rows_per_under - first < 4 ? rows_per_under - first : 4;
+                        under_t m = 0;
+                        for (int i = 0; i < count; ++i) {
+                            m |= under_t(row_mask) << (field_bits * i);
+                        }
+                        under_t const spread = cxx26bp::bit_expand<under_t>(under_t(word >> (first * W)), m);
+                        int const n = height - y < count ? height - y : count;
+                        if (n == count) {
+                            std::memcpy(&rows[y], &spread, std::size_t(count) * sizeof(row_t));
+                        } else {
+                            std::memcpy(&rows[y], &spread, std::size_t(n) * sizeof(row_t));
+                        }
+                        y += count;
+                    });
+                });
+                return rows;
+            }
             reachability::static_for<H>([&](auto y) {
                 int bit_pos = int(y) * W;
                 int ui = bit_pos / used_bits_per_under;
