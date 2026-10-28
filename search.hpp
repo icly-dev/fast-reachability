@@ -222,6 +222,10 @@ namespace reachability::search {
                 static_for<N>([&](auto i) { (*dst)[i] = src[i]; });
             }
         };
+        std::array<board_t, shapes> landable;
+        static_for<shapes>([&] [[gnu::always_inline]] (auto i) {
+            landable[i] = landable_positions(usable[i]);
+        });
         const auto quick_check = [&] [[gnu::always_inline]] () {
             bool found_all = true;
             std::array<board_t, shapes> ret;
@@ -230,9 +234,8 @@ namespace reachability::search {
                 ret[index] |= cache[i];
             });
             static_for<shapes>([&] [[gnu::always_inline]] (auto i) {
-                const auto landable = landable_positions(usable[i]);
-                found_all = found_all && ret[i].contains(landable);
-                ret[i] &= landable;
+                found_all = found_all && ret[i].contains(landable[i]);
+                ret[i] &= landable[i];
             });
             return std::pair{found_all, ret};
         };

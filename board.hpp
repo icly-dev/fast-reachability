@@ -183,15 +183,29 @@ namespace reachability {
         }
 
         template <Wrap<mino_p> auto mino>
+        static const std::array<board_t, height>& get_shapes_abs() {
+            static const std::array<board_t, height> s = [] {
+                std::array<board_t, height> a;
+                static_for<height>([&](auto yi) {
+                    constexpr int y = int(yi);
+                    board_t shape;
+                    shape.data = shape_at_y<mino, y % lines_per_under>().data;
+                    static_for<num_of_under>([&](auto i) {
+                        if constexpr (y / lines_per_under == int(i))
+                            shape.template move_<coord{0, (int(i) - 1) * lines_per_under}>();
+                    });
+                    a[y] = shape;
+                });
+                return a;
+            }();
+            return s;
+        }
+
+        template <Wrap<mino_p> auto mino>
         static constexpr board_t put(int x, int y) {
             constexpr auto range = mino_range<mino>();
-            constexpr int min_x = range[0];
-            board_t shape = get_shapes<mino>()[y % lines_per_under];
-            static_for<num_of_under>([&](auto i) {
-                if (y / lines_per_under == i)
-                    shape.template move_<coord{0, (int(i) - 1) * lines_per_under}>();
-            });
-            shape.data <<= x + min_x;
+            board_t shape = get_shapes_abs<mino>()[y];
+            shape.data <<= x + range[0];
             return shape;
         }
 
