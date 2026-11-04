@@ -334,13 +334,19 @@ namespace reachability {
                 return full_rows.get(W - 1, y);
             }
 
+            /// Count cleared rows strictly below height @p h (i.e. rows 0 .. h-1).
+            constexpr int get_clears_below(int h) const {
+                int const limit = h < int(H) ? h : int(H);
+                int count = 0;
+                for (int y = 0; y < limit; ++y)
+                    count += full_rows.get(W - 1, y);
+                return count;
+            }
+
             /// Check whether any cleared row exists strictly below height @p h
             /// (i.e. rows 0 .. h-1).
             constexpr bool has_cleared_below(int h) const {
-                for (int y = 0; y < h; ++y)
-                    if (full_rows.get(W - 1, y))
-                        return true;
-                return false;
+                return get_clears_below(h) > 0;
             }
         };
 
@@ -650,6 +656,8 @@ namespace reachability {
                             m |= under_t(row_mask) << (field_bits * i);
                         }
                         under_t const spread = cxx26bp::bit_expand<under_t>(under_t(word >> (first * W)), m);
+                        if (y >= height)
+                            return;
                         int const n = height - y < count ? height - y : count;
                         if (n == count) {
                             std::memcpy(&rows[y], &spread, std::size_t(count) * sizeof(row_t));
