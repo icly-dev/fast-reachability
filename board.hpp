@@ -713,26 +713,45 @@ namespace reachability {
 
         template <bool clean = false>
         [[gnu::always_inline]] void from_row_bitboard(std::array<row_t, height> rows) {
-            data = data_t{};
-            if constexpr(clean) {
-                constexpr row_t row_mask = (row_t(1) << width) - 1;
-                for (auto& r : rows) {
-                    r &= row_mask;
+            constexpr int field_bits = int(sizeof(row_t) * 8);
+            if constexpr (clean && field_bits == 16 && sizeof(under_t) == 8 && H == num_of_under * 6
+                && used_bits_per_under % W == 0 && used_bits_per_under / W == 6) {
+                constexpr under_t field = (under_t(1) << W) - 1;
+                constexpr under_t head_mask = field | field << 16 | field << 32 | field << 48;
+                constexpr under_t tail_mask = field | field << 16;
+                constexpr size_t lane_bytes = 6 * sizeof(row_t);
+                auto const* bytes = reinterpret_cast<unsigned char const*>(rows.data());
+                data = data_t{};
+                for (int lane = 0; lane < int(num_of_under); ++lane) {
+                    under_t head = 0;
+                    unsigned int tail = 0;
+                    __builtin_memcpy(&head, bytes + size_t(lane) * lane_bytes, sizeof head);
+                    __builtin_memcpy(&tail, bytes + size_t(lane) * lane_bytes + sizeof head, sizeof tail);
+                    assign(data, lane, cxx26bp::bit_compress(head, head_mask)
+                        | (static_cast<under_t>(cxx26bp::bit_compress(static_cast<under_t>(tail), tail_mask)) << (W * 4)));
                 }
+            } else {
+                data = data_t{};
+                if constexpr(clean) {
+                    constexpr row_t row_mask = (row_t(1) << width) - 1;
+                    for (auto& r : rows) {
+                        r &= row_mask;
+                    }
+                }
+                static_for<H>([&](auto y) {
+                    int bit_pos = int(y) * W;
+                    int ui = bit_pos / used_bits_per_under;
+                    int off = bit_pos % used_bits_per_under;
+                    under_t r = static_cast<under_t>(rows[y]);
+                    if (off + W > under_bits) {
+                        int lo = under_bits - off;
+                        assign(data, ui, data[ui] | (r << off));
+                        assign(data, ui + 1, data[ui + 1] | (r >> lo));
+                    } else {
+                        assign(data, ui, data[ui] | (r << off));
+                    }
+                });
             }
-            static_for<H>([&](auto y) {
-                int bit_pos = int(y) * W;
-                int ui = bit_pos / used_bits_per_under;
-                int off = bit_pos % used_bits_per_under;
-                under_t r = static_cast<under_t>(rows[y]);
-                if (off + W > under_bits) {
-                    int lo = under_bits - off;
-                    assign(data, ui, data[ui] | (r << off));
-                    assign(data, ui + 1, data[ui + 1] | (r >> lo));
-                } else {
-                    assign(data, ui, data[ui] | (r << off));
-                }
-            });
         }
 
     private:
