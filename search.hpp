@@ -606,11 +606,10 @@ namespace reachability::search {
 
     template <auto block, typename board_t>
         requires block_spec<decltype(block)>
-    constexpr std::array<board_t, block.shapes> clearing_positions(board_t data, const std::array<board_t, block.shapes>& candidates) {
+    constexpr std::array<board_t, block.shapes> clearing_positions(const std::array<board_t, block.shapes>& candidates, const std::array<typename board_t::row_t, board_t::height>& rows) {
         constexpr int H = board_t::height;
         using row_t = typename board_t::row_t;
         constexpr row_t full_row = row_t(std::numeric_limits<row_t>::max() >> (std::numeric_limits<row_t>::digits - board_t::width));
-        const auto rows = data.template to_row_bitboard<true>();
         for (int r = 0; r < H; ++r) {
             if (rows[r] == full_row)
                 return candidates;
@@ -642,6 +641,12 @@ namespace reachability::search {
             });
         });
         return ret;
+    }
+
+    template <auto block, typename board_t>
+        requires block_spec<decltype(block)>
+    constexpr std::array<board_t, block.shapes> clearing_positions(board_t data, const std::array<board_t, block.shapes>& candidates) {
+        return clearing_positions<block>(candidates, data.template to_row_bitboard<true>());
     }
 
     template <auto block, typename board_t>
