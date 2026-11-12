@@ -211,7 +211,8 @@ namespace reachability::search {
         std::array<board_t, block.orientations>& cache,
         std::array<bool, block.orientations>& need_visit,
         std::array<board_t, block.orientations>* out_cache,
-        const search_config& cfg) {
+        const search_config& cfg,
+        std::array<board_t, block.shapes> const* cover = nullptr) {
         constexpr int orientations = block.orientations;
         constexpr int shapes = block.shapes;
         bool allow_float = cfg.allow_softdrop && !cfg.allow_20g;
@@ -234,7 +235,7 @@ namespace reachability::search {
                 ret[index] |= cache[i];
             });
             static_for<shapes>([&] [[gnu::always_inline]] (auto i) {
-                found_all = found_all && ret[i].contains(landable[i]);
+                found_all = found_all && ret[i].contains(cover ? (landable[i] & (*cover)[i]) : landable[i]);
                 ret[i] &= landable[i];
             });
             return std::pair{found_all, ret};
@@ -388,7 +389,8 @@ namespace reachability::search {
         requires block_spec<decltype(block)>
     constexpr std::array<board_t, block.shapes> binary_bfs(board_t data, const search_config& cfg, coord start, unsigned init_rot,
         std::array<board_t, block.orientations>* out_cache = nullptr,
-        std::array<board_t, block.shapes>* out_usable = nullptr) {
+        std::array<board_t, block.shapes>* out_usable = nullptr,
+        std::array<board_t, block.shapes> const* cover = nullptr) {
         constexpr int orientations = block.orientations;
         constexpr int shapes = block.shapes;
         board_t usable[shapes];
@@ -472,7 +474,7 @@ namespace reachability::search {
                 need_visit[init_rot] = true;
             }
         }
-        return binary_bfs_impl<block, check_consecutive>(usable, cache, need_visit, out_cache, cfg);
+        return binary_bfs_impl<block, check_consecutive>(usable, cache, need_visit, out_cache, cfg, cover);
     }
 
     template <typename RS, bool check_consecutive = true, typename board_t>
@@ -503,7 +505,9 @@ namespace reachability::search {
         });
         if (!any)
             return {};
-        auto ret = binary_bfs<block, check_consecutive>(data, cfg, start, init_rot);
+        auto ret = binary_bfs<block, check_consecutive>(data, cfg, start, init_rot,
+            static_cast<std::array<board_t, block.orientations>*>(nullptr), static_cast<std::array<board_t, block.shapes>*>(nullptr),
+            &scanned);
         static_for<block.shapes>([&](auto i) {
             ret[i] &= scanned[i];
         });
